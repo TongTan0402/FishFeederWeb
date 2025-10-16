@@ -1,0 +1,1356 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🐠 Bể Cá IoT - MQTT Web Interface v2.0</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 2.5em;
+        }
+        
+        .connection-status {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+            border: 2px solid #ddd;
+        }
+        
+        .connection-status.connected {
+            background: #d4edda;
+            border-color: #28a745;
+            color: #155724;
+        }
+        
+        .connection-status.disconnected {
+            background: #f8d7da;
+            border-color: #dc3545;
+            color: #721c24;
+        }
+        
+        .mqtt-config {
+            background: #e3f2fd;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .mqtt-config h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+        
+        .config-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .config-row input {
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        .connect-btn {
+            width: 100%;
+            padding: 12px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            position: relative;
+            box-shadow: 0 4px 0 #5568d3, 0 5px 10px rgba(0,0,0,0.2);
+        }
+        
+        .connect-btn:hover {
+            box-shadow: 0 5px 0 #5568d3, 0 7px 15px rgba(0,0,0,0.25);
+            transform: translateY(-1px);
+        }
+        
+        .connect-btn:active {
+            box-shadow: 0 1px 0 #5568d3, 0 2px 5px rgba(0,0,0,0.2);
+            transform: translateY(3px);
+        }
+        
+        .connect-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            box-shadow: 0 2px 0 #aaa;
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .card {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .card h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        
+        .outlet-control {
+            margin-bottom: 15px;
+        }
+        
+        .outlet-name-input {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 8px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        .outlet-btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            position: relative;
+            box-shadow: 0 4px 0 rgba(0,0,0,0.3), 0 5px 10px rgba(0,0,0,0.2);
+        }
+        
+        .outlet-btn.on {
+            background: #28a745;
+            color: white;
+        }
+        
+        .outlet-btn.off {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .outlet-btn:hover:not(:disabled) {
+            box-shadow: 0 5px 0 rgba(0,0,0,0.3), 0 7px 15px rgba(0,0,0,0.25);
+            transform: translateY(-1px);
+        }
+        
+        .outlet-btn:active:not(:disabled) {
+            box-shadow: 0 1px 0 rgba(0,0,0,0.3), 0 2px 5px rgba(0,0,0,0.2);
+            transform: translateY(3px);
+        }
+        
+        .outlet-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            box-shadow: 0 2px 0 rgba(0,0,0,0.2);
+        }
+        
+        .schedule-item {
+            background: #fff;
+            padding: 10px;
+            margin: 8px 0;
+            border-radius: 8px;
+            border: 2px solid #ddd;
+        }
+        
+        .schedule-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .schedule-row input[type="checkbox"] {
+            transform: scale(1.3);
+        }
+        
+        .schedule-row input[type="time"] {
+            padding: 6px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        .schedule-row select {
+            padding: 6px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        .save-btn {
+            width: 100%;
+            padding: 10px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: all 0.3s;
+        }
+        
+        .save-btn:hover:not(:disabled) {
+            background: #5568d3;
+        }
+        
+        .save-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .feed-btn {
+            width: 100%;
+            padding: 20px;
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            position: relative;
+            box-shadow: 0 5px 0 #d64545, 0 8px 15px rgba(0,0,0,0.25);
+        }
+        
+        .feed-btn:hover:not(:disabled) {
+            box-shadow: 0 6px 0 #d64545, 0 10px 20px rgba(0,0,0,0.3);
+            transform: translateY(-2px);
+        }
+        
+        .feed-btn:active:not(:disabled) {
+            box-shadow: 0 2px 0 #d64545, 0 4px 8px rgba(0,0,0,0.2);
+            transform: translateY(3px);
+        }
+        
+        .feed-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            box-shadow: 0 3px 0 #d64545;
+        }
+        
+        .status {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 10px;
+        }
+        
+        .status p {
+            margin: 5px 0;
+            color: #333;
+        }
+        
+        .status strong {
+            color: #667eea;
+        }
+        
+        .log-container {
+            background: #1e1e1e;
+            color: #00ff00;
+            padding: 15px;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+        
+        .log-entry {
+            margin: 2px 0;
+        }
+        
+        .log-entry.received {
+            color: #00ff00;
+        }
+        
+        .log-entry.sent {
+            color: #ffff00;
+        }
+        
+        .log-entry.error {
+            color: #ff0000;
+        }
+        
+        .info-note {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            color: #856404;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-left: 5px;
+        }
+        
+        .badge-on {
+            background: #28a745;
+            color: white;
+        }
+        
+        .badge-off {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .outlet-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .outlet-title {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .edit-icon {
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            box-shadow: 0 3px 0 #5568d3, 0 4px 8px rgba(0,0,0,0.2);
+        }
+        
+        .edit-icon:hover {
+            box-shadow: 0 4px 0 #5568d3, 0 6px 12px rgba(0,0,0,0.25);
+            transform: translateY(-1px);
+        }
+        
+        .edit-icon:active {
+            box-shadow: 0 1px 0 #5568d3, 0 2px 4px rgba(0,0,0,0.2);
+            transform: translateY(2px);
+        }
+        
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            animation: fadeIn 0.3s;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 30px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            animation: slideDown 0.3s;
+        }
+        
+        @keyframes slideDown {
+            from { transform: translateY(-50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #667eea;
+        }
+        
+        .modal-header h2 {
+            color: #667eea;
+            margin: 0;
+        }
+        
+        .close-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            font-size: 20px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            position: relative;
+            box-shadow: 0 3px 0 #c82333, 0 4px 8px rgba(0,0,0,0.2);
+        }
+        
+        .close-btn:hover {
+            box-shadow: 0 4px 0 #c82333, 0 6px 12px rgba(0,0,0,0.25);
+            transform: translateY(-1px) rotate(90deg);
+        }
+        
+        .close-btn:active {
+            box-shadow: 0 1px 0 #c82333, 0 2px 4px rgba(0,0,0,0.2);
+            transform: translateY(2px) rotate(90deg);
+        }
+        
+        .modal-input-group {
+            margin-bottom: 20px;
+        }
+        
+        .modal-input-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .modal-input-group input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+        
+        .modal-schedule-list {
+            margin-top: 15px;
+        }
+        
+        .modal-schedule-item {
+            background: #f8f9fa;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border: 2px solid #ddd;
+        }
+        
+        .modal-schedule-row {
+            display: grid;
+            grid-template-columns: auto 1fr 1fr auto;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .modal-schedule-row input[type="checkbox"] {
+            transform: scale(1.5);
+        }
+        
+        .modal-schedule-row input[type="time"],
+        .modal-schedule-row select {
+            padding: 8px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        .modal-footer {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .modal-save-btn {
+            flex: 1;
+            padding: 12px;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            position: relative;
+            box-shadow: 0 4px 0 #1e7e34, 0 5px 10px rgba(0,0,0,0.2);
+        }
+        
+        .modal-save-btn:hover {
+            box-shadow: 0 5px 0 #1e7e34, 0 7px 15px rgba(0,0,0,0.25);
+            transform: translateY(-1px);
+        }
+        
+        .modal-save-btn:active {
+            box-shadow: 0 1px 0 #1e7e34, 0 2px 5px rgba(0,0,0,0.2);
+            transform: translateY(3px);
+        }
+        
+        .modal-cancel-btn {
+            flex: 1;
+            padding: 12px;
+            background: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            position: relative;
+            box-shadow: 0 4px 0 #545b62, 0 5px 10px rgba(0,0,0,0.2);
+        }
+        
+        .modal-cancel-btn:hover {
+            box-shadow: 0 5px 0 #545b62, 0 7px 15px rgba(0,0,0,0.25);
+            transform: translateY(-1px);
+        }
+        
+        .modal-cancel-btn:active {
+            box-shadow: 0 1px 0 #545b62, 0 2px 5px rgba(0,0,0,0.2);
+            transform: translateY(3px);
+        }
+        
+        /* Toast Notification */
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: #28a745;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 10px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+            font-size: 16px;
+            font-weight: bold;
+            z-index: 10000;
+            opacity: 0;
+            transform: translateY(100px);
+            transition: all 0.3s ease;
+        }
+        
+        .toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        .toast.error {
+            background: #dc3545;
+        }
+        
+        .toast.info {
+            background: #17a2b8;
+        }
+        
+        .toast.warning {
+            background: #ffc107;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🐠 Hệ Thống Bể Cá IoT v2.0 🐠</h1>
+        
+        <div class="info-note">
+            <strong>ℹ️ Lưu ý:</strong> Trang web này kết nối trực tiếp đến MQTT broker qua WebSocket. 
+            Broker phải hỗ trợ WebSocket. 
+            Ví dụ: test.mosquitto.org:8081 hoặc broker.hivemq.com:8000
+        </div>
+        
+        <!-- Cấu hình MQTT -->
+        <div class="mqtt-config">
+            <h3>⚙️ Cấu Hình MQTT</h3>
+            <div class="config-row">
+                <input type="text" id="mqttBroker" placeholder="MQTT Broker (vd: test.mosquitto.org)" value="test.mosquitto.org">
+                <input type="number" id="mqttPort" placeholder="WebSocket Port (vd: 8081)" value="8081">
+                <input type="text" id="mqttClientId" placeholder="Client ID" readonly>
+            </div>
+            <div class="config-row">
+                <input type="text" id="mqttUsername" placeholder="Username (để trống nếu không cần)">
+                <input type="password" id="mqttPassword" placeholder="Password (để trống nếu không cần)">
+            </div>
+            <button class="connect-btn" id="connectBtn" onclick="toggleConnection()">Kết Nối MQTT</button>
+        </div>
+        
+        <!-- Trạng thái kết nối -->
+        <div class="connection-status disconnected" id="connectionStatus">
+            🔴 Chưa kết nối - Vui lòng kết nối MQTT
+        </div>
+        
+        <!-- Giao diện điều khiển -->
+        <div class="grid">
+            <!-- Outlet 1 -->
+            <div class="card">
+                <div class="outlet-header">
+                    <div class="outlet-title" id="outlet1Title">⚡ Outlet 1</div>
+                    <button class="edit-icon" onclick="openEditModal(1)" title="Chỉnh sửa">✏️</button>
+                </div>
+                <button class="outlet-btn off" id="outlet1Btn" onclick="toggleOutlet(1)" disabled>
+                    TẮT
+                </button>
+            </div>
+            
+            <!-- Outlet 2 -->
+            <div class="card">
+                <div class="outlet-header">
+                    <div class="outlet-title" id="outlet2Title">⚡ Outlet 2</div>
+                    <button class="edit-icon" onclick="openEditModal(2)" title="Chỉnh sửa">✏️</button>
+                </div>
+                <button class="outlet-btn off" id="outlet2Btn" onclick="toggleOutlet(2)" disabled>
+                    TẮT
+                </button>
+            </div>
+            
+            <!-- Outlet 3 -->
+            <div class="card">
+                <div class="outlet-header">
+                    <div class="outlet-title" id="outlet3Title">⚡ Outlet 3</div>
+                    <button class="edit-icon" onclick="openEditModal(3)" title="Chỉnh sửa">✏️</button>
+                </div>
+                <button class="outlet-btn off" id="outlet3Btn" onclick="toggleOutlet(3)" disabled>
+                    TẮT
+                </button>
+            </div>
+            
+            <!-- Outlet 4 -->
+            <div class="card">
+                <div class="outlet-header">
+                    <div class="outlet-title" id="outlet4Title">⚡ Outlet 4</div>
+                    <button class="edit-icon" onclick="openEditModal(4)" title="Chỉnh sửa">✏️</button>
+                </div>
+                <button class="outlet-btn off" id="outlet4Btn" onclick="toggleOutlet(4)" disabled>
+                    TẮT
+                </button>
+            </div>
+        </div>
+        
+        <!-- Cho ăn và trạng thái -->
+        <div class="grid">
+            <div class="card">
+                <div class="outlet-header">
+                    <div class="outlet-title">🍽️ Cho Cá Ăn</div>
+                    <button class="edit-icon" onclick="openFeedingModal()" title="Chỉnh sửa lịch cho ăn">✏️</button>
+                </div>
+                <button class="feed-btn" onclick="feedFish()" disabled id="feedBtn">
+                    CHO ĂN NGAY
+                </button>
+                <p style="margin-top: 15px; color: #666; text-align: center;">
+                    Lần cho ăn cuối: <strong id="lastFeed">Chưa có</strong>
+                </p>
+            </div>
+            
+            <div class="card">
+                <h2>📊 Trạng Thái Hệ Thống</h2>
+                <div class="status">
+                    <p><strong>ESP32 IP:</strong> <span id="espIP">Đang tải...</span></p>
+                    <p><strong>WiFi Signal:</strong> <span id="wifiRSSI">Đang tải...</span></p>
+                    <p><strong>MQTT Broker:</strong> <span id="brokerStatus">Chưa kết nối</span></p>
+                    <p><strong>Last Update:</strong> <span id="lastUpdate">-</span></p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Console Log -->
+        <div class="log-container" id="logContainer">
+            <div class="log-entry">📝 MQTT Console Log - Sẵn sàng...</div>
+        </div>
+    </div>
+    
+    <!-- Toast Notification Container -->
+    <div id="toastContainer"></div>
+    
+    <!-- Modal Chỉnh Sửa Outlet -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">✏️ Chỉnh Sửa Outlet 1</h2>
+                <button class="close-btn" onclick="closeEditModal()">×</button>
+            </div>
+            
+            <div class="modal-input-group">
+                <label>📝 Tên Thiết Bị:</label>
+                <input type="text" id="modalOutletName" placeholder="Nhập tên thiết bị...">
+            </div>
+            
+            <div class="modal-input-group">
+                <label>⏰ Lịch Hẹn Giờ:</label>
+                <div class="modal-schedule-list" id="modalScheduleList">
+                    <!-- 4 lịch trình sẽ được tạo bằng JS -->
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button class="modal-cancel-btn" onclick="closeEditModal()">Hủy</button>
+                <button class="modal-save-btn" onclick="saveModalChanges()">💾 Lưu Thay Đổi</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal Chỉnh Sửa Lịch Cho Ăn -->
+    <div id="feedingModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>🍽️ Lịch Cho Cá Ăn</h2>
+                <button class="close-btn" onclick="closeFeedingModal()">×</button>
+            </div>
+            
+            <div class="modal-input-group">
+                <label>⏰ Lịch Hẹn Giờ Cho Ăn:</label>
+                <div class="modal-schedule-list" id="feedingScheduleList">
+                    <!-- 4 lịch trình cho ăn sẽ được tạo bằng JS -->
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button class="modal-cancel-btn" onclick="closeFeedingModal()">Hủy</button>
+                <button class="modal-save-btn" onclick="saveFeedingSchedule()">💾 Lưu Lịch Cho Ăn</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Thư viện MQTT.js từ CDN -->
+    <script src="https://unpkg.com/mqtt@4.3.7/dist/mqtt.min.js"></script>
+    
+    <script>
+        let mqttClient = null;
+        let isConnected = false;
+        let currentEditingOutlet = 1; // Outlet đang được chỉnh sửa
+        let outletNames = {
+            1: "Outlet 1",
+            2: "Outlet 2", 
+            3: "Outlet 3",
+            4: "Outlet 4"
+        };
+        
+        // Tạo Client ID ngẫu nhiên
+        document.getElementById('mqttClientId').value = 'WebClient_' + Math.random().toString(16).substr(2, 8);
+        
+        // Hàm hiển thị toast notification
+        function showToast(message, type = 'success', duration = 3000) {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            
+            const container = document.getElementById('toastContainer');
+            container.appendChild(toast);
+            
+            // Hiển thị toast
+            setTimeout(() => {
+                toast.classList.add('show');
+            }, 10);
+            
+            // Tự động ẩn sau duration
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => {
+                    container.removeChild(toast);
+                }, 300);
+            }, duration);
+        }
+        
+        // Tạo giao diện 4 lịch trình trong modal
+        function createModalSchedules() {
+            const container = document.getElementById('modalScheduleList');
+            container.innerHTML = '';
+            
+            for (let i = 0; i < 4; i++) {
+                const scheduleDiv = document.createElement('div');
+                scheduleDiv.className = 'modal-schedule-item';
+                scheduleDiv.innerHTML = `
+                    <div class="modal-schedule-row">
+                        <input type="checkbox" id="modal_s${i}_enable">
+                        <input type="time" id="modal_s${i}_time" value="00:00">
+                        <select id="modal_s${i}_action">
+                            <option value="true">BẬT</option>
+                            <option value="false">TẮT</option>
+                        </select>
+                        <span style="font-size: 12px; color: #666;">Lịch ${i+1}</span>
+                    </div>
+                `;
+                container.appendChild(scheduleDiv);
+            }
+        }
+        
+        // Tạo giao diện lịch cho ăn
+        function createFeedingSchedules() {
+            const container = document.getElementById('feedingScheduleList');
+            container.innerHTML = '';
+            
+            for (let i = 0; i < 4; i++) {
+                const scheduleDiv = document.createElement('div');
+                scheduleDiv.className = 'modal-schedule-item';
+                scheduleDiv.innerHTML = `
+                    <div class="modal-schedule-row" style="grid-template-columns: auto 1fr auto;">
+                        <input type="checkbox" id="feeding_s${i}_enable">
+                        <input type="time" id="feeding_s${i}_time" value="00:00">
+                        <span style="font-size: 12px; color: #666;">Lịch ${i+1}</span>
+                    </div>
+                `;
+                container.appendChild(scheduleDiv);
+            }
+        }
+        
+        // Mở modal chỉnh sửa
+        function openEditModal(outlet) {
+            currentEditingOutlet = outlet;
+            
+            // Cập nhật tiêu đề modal
+            document.getElementById('modalTitle').textContent = `✏️ Chỉnh Sửa ${outletNames[outlet]}`;
+            
+            // Load tên hiện tại
+            document.getElementById('modalOutletName').value = outletNames[outlet];
+            
+            // Load lịch trình hiện tại
+            for (let i = 0; i < 4; i++) {
+                const enabledEl = document.getElementById(`modal_s${i}_enable`);
+                const timeEl = document.getElementById(`modal_s${i}_time`);
+                const actionEl = document.getElementById(`modal_s${i}_action`);
+                
+                // Lấy dữ liệu từ localStorage (cache)
+                const scheduleKey = `outlet${outlet}_schedule${i}`;
+                const savedSchedule = localStorage.getItem(scheduleKey);
+                
+                if (savedSchedule) {
+                    const schedule = JSON.parse(savedSchedule);
+                    enabledEl.checked = schedule.enabled;
+                    timeEl.value = schedule.time;
+                    actionEl.value = String(schedule.action);
+                } else {
+                    enabledEl.checked = false;
+                    timeEl.value = '00:00';
+                    actionEl.value = 'true';
+                }
+            }
+            
+            // Hiển thị modal
+            document.getElementById('editModal').style.display = 'block';
+        }
+        
+        // Đóng modal
+        function closeEditModal() {
+            document.getElementById('editModal').style.display = 'none';
+        }
+        
+        // Mở modal lịch cho ăn
+        function openFeedingModal() {
+            // Load lịch cho ăn hiện tại từ localStorage
+            for (let i = 0; i < 4; i++) {
+                const scheduleKey = `feeding_schedule${i}`;
+                const savedSchedule = localStorage.getItem(scheduleKey);
+                
+                if (savedSchedule) {
+                    const schedule = JSON.parse(savedSchedule);
+                    document.getElementById(`feeding_s${i}_enable`).checked = schedule.enabled;
+                    document.getElementById(`feeding_s${i}_time`).value = schedule.time;
+                } else {
+                    document.getElementById(`feeding_s${i}_enable`).checked = false;
+                    document.getElementById(`feeding_s${i}_time`).value = '00:00';
+                }
+            }
+            
+            document.getElementById('feedingModal').style.display = 'block';
+        }
+        
+        // Đóng modal lịch cho ăn
+        function closeFeedingModal() {
+            document.getElementById('feedingModal').style.display = 'none';
+        }
+        
+        // Lưu lịch cho ăn
+        function saveFeedingSchedule() {
+            if (!mqttClient || !isConnected) {
+                showToast('⚠️ Vui lòng kết nối MQTT trước!', 'warning');
+                return;
+            }
+            
+            // Tạo đối tượng schedules đầy đủ
+            const schedules = {};
+            
+            // Lấy lịch trình outlets từ localStorage
+            for (let o = 1; o <= 4; o++) {
+                schedules[`outlet${o}`] = [];
+                for (let i = 0; i < 4; i++) {
+                    const scheduleKey = `outlet${o}_schedule${i}`;
+                    const savedSchedule = localStorage.getItem(scheduleKey);
+                    if (savedSchedule) {
+                        const s = JSON.parse(savedSchedule);
+                        const time = s.time.split(':');
+                        schedules[`outlet${o}`].push({
+                            enabled: s.enabled,
+                            hour: parseInt(time[0]),
+                            minute: parseInt(time[1]),
+                            action: s.action
+                        });
+                    } else {
+                        schedules[`outlet${o}`].push({
+                            enabled: false,
+                            hour: 0,
+                            minute: 0,
+                            action: true
+                        });
+                    }
+                }
+            }
+            
+            // Thêm lịch cho ăn
+            schedules.feeding = [];
+            for (let i = 0; i < 4; i++) {
+                const enabled = document.getElementById(`feeding_s${i}_enable`).checked;
+                const timeValue = document.getElementById(`feeding_s${i}_time`).value;
+                const time = timeValue.split(':');
+                
+                schedules.feeding.push({
+                    enabled: enabled,
+                    hour: parseInt(time[0]),
+                    minute: parseInt(time[1])
+                });
+                
+                // Lưu vào localStorage
+                const scheduleKey = `feeding_schedule${i}`;
+                localStorage.setItem(scheduleKey, JSON.stringify({
+                    enabled: enabled,
+                    time: timeValue
+                }));
+            }
+            
+            // Gửi qua MQTT với retained flag
+            mqttClient.publish('fishfeeder/schedule', JSON.stringify(schedules), { retain: true });
+            addLog('📤 Lưu lịch cho ăn', 'sent');
+            
+            closeFeedingModal();
+            showToast('✅ Đã lưu lịch cho ăn!', 'success');
+        }
+        
+        // Lưu thay đổi từ modal
+        function saveModalChanges() {
+            if (!mqttClient || !isConnected) {
+                showToast('⚠️ Vui lòng kết nối MQTT trước!', 'warning');
+                return;
+            }
+            
+            const outlet = currentEditingOutlet;
+            
+            // Lưu tên mới - PUBLISH VÀO TOPIC RIÊNG
+            const newName = document.getElementById('modalOutletName').value.trim();
+            if (newName) {
+                outletNames[outlet] = newName;
+                document.getElementById(`outlet${outlet}Title`).textContent = `⚡ ${newName}`;
+                
+                // Gửi tên qua MQTT vào topic riêng với retained flag
+                mqttClient.publish(`fishfeeder/outlet${outlet}/name`, newName, { retain: true });
+                addLog(`📤 Cập nhật tên outlet ${outlet}: ${newName}`, 'sent');
+            }
+            
+            // Lưu lịch trình - CHỈ LƯU OUTLET ĐANG EDIT
+            const schedules = [];
+            
+            for (let i = 0; i < 4; i++) {
+                const enabled = document.getElementById(`modal_s${i}_enable`).checked;
+                const timeValue = document.getElementById(`modal_s${i}_time`).value;
+                const action = document.getElementById(`modal_s${i}_action`).value === 'true';
+                
+                // Cache vào localStorage
+                const scheduleKey = `outlet${outlet}_schedule${i}`;
+                localStorage.setItem(scheduleKey, JSON.stringify({
+                    enabled: enabled,
+                    time: timeValue,
+                    action: action
+                }));
+                
+                const time = timeValue.split(':');
+                schedules.push({
+                    enabled: enabled,
+                    hour: parseInt(time[0]),
+                    minute: parseInt(time[1]),
+                    action: action
+                });
+            }
+            
+            // Gửi lịch trình vào topic riêng với retained flag
+            const scheduleJSON = JSON.stringify({ schedules: schedules });
+            mqttClient.publish(`fishfeeder/outlet${outlet}/schedule`, scheduleJSON, { retain: true });
+            addLog(`📤 Lưu lịch trình Outlet ${outlet}`, 'sent');
+            
+            // Đóng modal
+            closeEditModal();
+            showToast(`✅ Đã lưu cài đặt ${outletNames[outlet]}!`, 'success');
+        }
+        
+        // Click bên ngoài modal để đóng
+        window.onclick = function(event) {
+            const editModal = document.getElementById('editModal');
+            const feedingModal = document.getElementById('feedingModal');
+            
+            if (event.target === editModal) {
+                closeEditModal();
+            }
+            if (event.target === feedingModal) {
+                closeFeedingModal();
+            }
+        }
+        
+        // Khởi tạo modal schedules
+        createModalSchedules();
+        createFeedingSchedules();
+        
+        // Hàm log
+        function addLog(message, type = 'received') {
+            const logContainer = document.getElementById('logContainer');
+            const timestamp = new Date().toLocaleTimeString('vi-VN');
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+            
+            // Giới hạn 100 dòng log
+            if (logContainer.children.length > 100) {
+                logContainer.removeChild(logContainer.firstChild);
+            }
+        }
+        
+        // Kết nối/Ngắt kết nối MQTT
+        function toggleConnection() {
+            if (isConnected) {
+                disconnectMQTT();
+            } else {
+                connectMQTT();
+            }
+        }
+        
+        // Kết nối MQTT
+        function connectMQTT() {
+            const broker = document.getElementById('mqttBroker').value;
+            const port = document.getElementById('mqttPort').value;
+            const clientId = document.getElementById('mqttClientId').value;
+            const username = document.getElementById('mqttUsername').value;
+            const password = document.getElementById('mqttPassword').value;
+            
+            const url = `ws://${broker}:${port}/mqtt`;
+            
+            addLog(`Đang kết nối đến ${url}...`, 'sent');
+            
+            const options = {
+                clientId: clientId,
+                clean: true,
+                reconnectPeriod: 5000,
+            };
+            
+            if (username) {
+                options.username = username;
+                options.password = password;
+            }
+            
+            mqttClient = mqtt.connect(url, options);
+            
+            mqttClient.on('connect', () => {
+                isConnected = true;
+                updateConnectionStatus(true);
+                addLog('✅ Đã kết nối MQTT thành công!', 'received');
+                
+                // Subscribe các topic STATUS riêng để nhận trạng thái
+                mqttClient.subscribe('fishfeeder/outlet1/status', (err) => {
+                    if (!err) addLog('📥 Subscribed: outlet1/status', 'received');
+                });
+                mqttClient.subscribe('fishfeeder/outlet2/status', (err) => {
+                    if (!err) addLog('📥 Subscribed: outlet2/status', 'received');
+                });
+                mqttClient.subscribe('fishfeeder/outlet3/status', (err) => {
+                    if (!err) addLog('📥 Subscribed: outlet3/status', 'received');
+                });
+                mqttClient.subscribe('fishfeeder/outlet4/status', (err) => {
+                    if (!err) addLog('📥 Subscribed: outlet4/status', 'received');
+                });
+                
+                // Subscribe các topic SCHEDULE riêng
+                mqttClient.subscribe('fishfeeder/outlet1/schedule', (err) => {
+                    if (!err) addLog('📥 Subscribed: outlet1/schedule', 'received');
+                });
+                mqttClient.subscribe('fishfeeder/outlet2/schedule', (err) => {
+                    if (!err) addLog('📥 Subscribed: outlet2/schedule', 'received');
+                });
+                mqttClient.subscribe('fishfeeder/outlet3/schedule', (err) => {
+                    if (!err) addLog('📥 Subscribed: outlet3/schedule', 'received');
+                });
+                mqttClient.subscribe('fishfeeder/outlet4/schedule', (err) => {
+                    if (!err) addLog('📥 Subscribed: outlet4/schedule', 'received');
+                });
+                
+                // Subscribe các topic NAME riêng
+                mqttClient.subscribe('fishfeeder/outlet1/name', (err) => {
+                    if (!err) addLog('📥 Subscribed: outlet1/name', 'received');
+                });
+                mqttClient.subscribe('fishfeeder/outlet2/name', (err) => {
+                    if (!err) addLog('📥 Subscribed: outlet2/name', 'received');
+                });
+                mqttClient.subscribe('fishfeeder/outlet3/name', (err) => {
+                    if (!err) addLog('📥 Subscribed: outlet3/name', 'received');
+                });
+                mqttClient.subscribe('fishfeeder/outlet4/name', (err) => {
+                    if (!err) addLog('📥 Subscribed: outlet4/name', 'received');
+                });
+                
+                // Subscribe topic thông tin thiết bị
+                mqttClient.subscribe('fishfeeder/info', (err) => {
+                    if (!err) addLog('📥 Subscribed: fishfeeder/info', 'received');
+                });
+                
+                enableControls(true);
+            });
+            
+            mqttClient.on('message', (topic, message) => {
+                const msg = message.toString();
+                addLog(`📩 ${topic}: ${msg.substring(0, 100)}${msg.length > 100 ? '...' : ''}`, 'received');
+                handleMQTTMessage(topic, msg);
+            });
+            
+            mqttClient.on('error', (err) => {
+                addLog(`❌ Lỗi: ${err.message}`, 'error');
+            });
+            
+            mqttClient.on('close', () => {
+                isConnected = false;
+                updateConnectionStatus(false);
+                addLog('🔴 Đã ngắt kết nối MQTT', 'error');
+                enableControls(false);
+            });
+        }
+        
+        // Ngắt kết nối MQTT
+        function disconnectMQTT() {
+            if (mqttClient) {
+                mqttClient.end();
+                mqttClient = null;
+            }
+        }
+        
+        // Cập nhật trạng thái kết nối
+        function updateConnectionStatus(connected) {
+            const statusDiv = document.getElementById('connectionStatus');
+            const connectBtn = document.getElementById('connectBtn');
+            const brokerStatus = document.getElementById('brokerStatus');
+            
+            if (connected) {
+                statusDiv.className = 'connection-status connected';
+                statusDiv.innerHTML = '🟢 Đã kết nối MQTT - Sẵn sàng điều khiển';
+                connectBtn.textContent = 'Ngắt Kết Nối';
+                const broker = document.getElementById('mqttBroker').value;
+                brokerStatus.textContent = `${broker} (Đã kết nối)`;
+            } else {
+                statusDiv.className = 'connection-status disconnected';
+                statusDiv.innerHTML = '🔴 Chưa kết nối - Vui lòng kết nối MQTT';
+                connectBtn.textContent = 'Kết Nối MQTT';
+                brokerStatus.textContent = 'Chưa kết nối';
+            }
+        }
+        
+        // Bật/tắt các nút điều khiển
+        function enableControls(enabled) {
+            const buttons = ['outlet1Btn', 'outlet2Btn', 'outlet3Btn', 'outlet4Btn', 'feedBtn'];
+            buttons.forEach(id => {
+                const btn = document.getElementById(id);
+                if (btn) btn.disabled = !enabled;
+            });
+        }
+        
+        // Xử lý tin nhắn MQTT
+        function handleMQTTMessage(topic, message) {
+            // ===== XỬ LÝ STATUS RIÊNG TỪNG OUTLET =====
+            if (topic === 'fishfeeder/outlet1/status') {
+                updateOutletButton(1, message === 'ON');
+            } else if (topic === 'fishfeeder/outlet2/status') {
+                updateOutletButton(2, message === 'ON');
+            } else if (topic === 'fishfeeder/outlet3/status') {
+                updateOutletButton(3, message === 'ON');
+            } else if (topic === 'fishfeeder/outlet4/status') {
+                updateOutletButton(4, message === 'ON');
+            }
+            
+            // ===== XỬ LÝ SCHEDULE RIÊNG TỪNG OUTLET =====
+            else if (topic === 'fishfeeder/outlet1/schedule') {
+                handleOutletScheduleMessage(1, message);
+            } else if (topic === 'fishfeeder/outlet2/schedule') {
+                handleOutletScheduleMessage(2, message);
+            } else if (topic === 'fishfeeder/outlet3/schedule') {
+                handleOutletScheduleMessage(3, message);
+            } else if (topic === 'fishfeeder/outlet4/schedule') {
+                handleOutletScheduleMessage(4, message);
+            }
+            
+            // ===== XỬ LÝ NAME RIÊNG TỪNG OUTLET =====
+            else if (topic === 'fishfeeder/outlet1/name') {
+                outletNames[1] = message;
+                document.getElementById('outlet1Title').textContent = `⚡ ${message}`;
+            } else if (topic === 'fishfeeder/outlet2/name') {
+                outletNames[2] = message;
+                document.getElementById('outlet2Title').textContent = `⚡ ${message}`;
+            } else if (topic === 'fishfeeder/outlet3/name') {
+                outletNames[3] = message;
+                document.getElementById('outlet3Title').textContent = `⚡ ${message}`;
+            } else if (topic === 'fishfeeder/outlet4/name') {
+                outletNames[4] = message;
+                document.getElementById('outlet4Title').textContent = `⚡ ${message}`;
+            }
+            
+            // ===== XỬ LÝ THÔNG TIN THIẾT BỊ =====
+            else if (topic === 'fishfeeder/info') {
+                try {
+                    const data = JSON.parse(message);
+                    document.getElementById('espIP').textContent = data.ip || 'N/A';
+                    document.getElementById('wifiRSSI').textContent = data.rssi ? `${data.rssi} dBm` : 'N/A';
+                    document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('vi-VN');
+                } catch (e) {
+                    addLog(`⚠️ Lỗi parse info: ${e}`, 'error');
+                }
+            }
+        }
+        
+        // Xử lý schedule message cho 1 outlet
+        function handleOutletScheduleMessage(outlet, message) {
+            try {
+                const data = JSON.parse(message);
+                const schedules = data.schedules;
+                
+                if (schedules && Array.isArray(schedules)) {
+                    for (let i = 0; i < 4 && i < schedules.length; i++) {
+                        const s = schedules[i];
+                        const timeValue = `${String(s.hour || 0).padStart(2,'0')}:${String(s.minute || 0).padStart(2,'0')}`;
+                        
+                        // Lưu vào localStorage
+                        const scheduleKey = `outlet${outlet}_schedule${i}`;
+                        localStorage.setItem(scheduleKey, JSON.stringify({
+                            enabled: s.enabled || false,
+                            time: timeValue,
+                            action: s.action
+                        }));
+                    }
+                    addLog(`✅ Đã load lịch trình outlet ${outlet}`, 'received');
+                }
+            } catch (e) {
+                addLog(`⚠️ Lỗi parse schedule outlet ${outlet}: ${e}`, 'error');
+            }
+        }
+        
+        // Cập nhật nút outlet
+        function updateOutletButton(outlet, state) {
+            const btn = document.getElementById(`outlet${outlet}Btn`);
+            if (!btn) return;
+            
+            // Cập nhật trạng thái và kích hoạt lại nút (từ trạng thái "đang chờ")
+            btn.disabled = false;
+            btn.className = 'outlet-btn ' + (state ? 'on' : 'off');
+            btn.textContent = state ? 'BẬT' : 'TẮT';
+        }
+        
+        // Toggle outlet
+        function toggleOutlet(outlet) {
+            if (!mqttClient || !isConnected) {
+                showToast('⚠️ Vui lòng kết nối MQTT trước!', 'warning');
+                return;
+            }
+            
+            const btn = document.getElementById(`outlet${outlet}Btn`);
+            const currentState = btn.classList.contains('on');
+            const newState = !currentState;
+            
+            // GỬI lệnh vào topic control riêng
+            // Chờ ESP32 phản hồi qua topic fishfeeder/outletX/status
+            mqttClient.publish(`fishfeeder/outlet${outlet}/control`, newState ? 'ON' : 'OFF');
+            addLog(`📤 Gửi: outlet${outlet}/control = ${newState ? 'ON' : 'OFF'}`, 'sent');
+            
+            // Hiển thị trạng thái "đang chờ"
+            btn.disabled = true;
+            btn.textContent = '⏳';
+            
+            // Timeout sau 3 giây nếu không nhận được phản hồi
+            setTimeout(() => {
+                if (btn.disabled) {
+                    btn.disabled = false;
+                    btn.textContent = currentState ? 'BẬT' : 'TẮT';
+                    showToast('⚠️ Không nhận được phản hồi từ ESP32', 'warning');
+                }
+            }, 3000);
+        }
+        
+        // Cho cá ăn
+        function feedFish() {
+            if (!mqttClient || !isConnected) {
+                showToast('⚠️ Vui lòng kết nối MQTT trước!', 'warning');
+                return;
+            }
+            
+            mqttClient.publish('fishfeeder/feed', 'FEED');
+            addLog('📤 Gửi lệnh: CHO ĂN', 'sent');
+            showToast('🐠 Đã gửi lệnh cho cá ăn!', 'success');
+        }
+        
+        // Load cấu hình từ localStorage
+        window.addEventListener('load', () => {
+            const savedBroker = localStorage.getItem('mqttBroker');
+            const savedPort = localStorage.getItem('mqttPort');
+            const savedUsername = localStorage.getItem('mqttUsername');
+            
+            if (savedBroker) document.getElementById('mqttBroker').value = savedBroker;
+            if (savedPort) document.getElementById('mqttPort').value = savedPort;
+            if (savedUsername) document.getElementById('mqttUsername').value = savedUsername;
+        });
+        
+        // Lưu cấu hình khi thay đổi
+        ['mqttBroker', 'mqttPort', 'mqttUsername'].forEach(id => {
+            document.getElementById(id).addEventListener('change', (e) => {
+                localStorage.setItem(id, e.target.value);
+            });
+        });
+    </script>
+</body>
+</html>
