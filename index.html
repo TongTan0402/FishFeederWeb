@@ -602,7 +602,7 @@
         <h1>🐠 Hệ Thống Bể Cá IoT v2.0 🐠</h1>
         
         <div class="info-note">
-            <strong>ℹ️ Lưu ý:</strong> Broker hiện tại: <span id="currentBroker">test.mosquitto.org:8081</span>.<br>
+            <strong>ℹ️ Lưu ý:</strong> Cần chọn broker hiện tại trên esp32: <span id="currentBroker">test.mosquitto.org:8081</span>.<br>
         </div>
         
         <!-- Cấu hình MQTT -->
@@ -611,23 +611,11 @@
             <div class="config-row">
                 <input type="text" id="mqttBroker" placeholder="MQTT Broker (vd: test.mosquitto.org)" value="test.mosquitto.org">
                 <input type="number" id="mqttPort" placeholder="WebSocket Port (vd: 8081)" value="8081">
-                <input type="text" id="mqttClientId" placeholder="Client ID" readonly>
             </div>
             <div class="config-row">
                 <input type="text" id="mqttUsername" placeholder="Username (để trống nếu không cần)">
                 <input type="password" id="mqttPassword" placeholder="Password (để trống nếu không cần)">
             </div>
-            
-            <!-- Nút chuyển nhanh sang broker WSS -->
-            <div style="margin-bottom: 10px; display: flex; gap: 10px;">
-                <button onclick="useHiveMQBroker()" style="flex: 1; padding: 8px; background: #17a2b8; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 13px;">
-                    🔒 Dùng HiveMQ (WSS)
-                </button>
-                <button onclick="useMosquittoBroker()" style="flex: 1; padding: 8px; background: #6c757d; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 13px;">
-                    🔓 Dùng Mosquitto (WS)
-                </button>
-            </div>
-            
             <button class="connect-btn" id="connectBtn" onclick="toggleConnection()">Kết Nối MQTT</button>
         </div>
         
@@ -780,23 +768,6 @@
             3: "Outlet 3",
             4: "Outlet 4"
         };
-        
-        // Tạo Client ID ngẫu nhiên
-        document.getElementById('mqttClientId').value = 'WebClient_' + Math.random().toString(16).substr(2, 8);
-        
-        // Hàm chuyển sang HiveMQ (hỗ trợ WSS)
-        function useHiveMQBroker() {
-            document.getElementById('mqttBroker').value = 'broker.hivemq.com';
-            document.getElementById('mqttPort').value = '8884'; // WSS port
-            showToast('✅ Đã chuyển sang HiveMQ (hỗ trợ WSS cho GitHub Pages)', 'success');
-        }
-        
-        // Hàm chuyển về Mosquitto (WS local)
-        function useMosquittoBroker() {
-            document.getElementById('mqttBroker').value = 'test.mosquitto.org';
-            document.getElementById('mqttPort').value = '8081'; // WS port
-            showToast('ℹ️ Đã chuyển về Mosquitto (chỉ dùng được local)', 'info');
-        }
         
         // Hàm hiển thị toast notification
         function showToast(message, type = 'success', duration = 3000) {
@@ -1095,7 +1066,7 @@
         function connectMQTT() {
             const broker = document.getElementById('mqttBroker').value;
             let port = document.getElementById('mqttPort').value;
-            const clientId = document.getElementById('mqttClientId').value;
+            const clientId = 'WebClient_' + Math.random().toString(16).substr(2, 8);
             const username = document.getElementById('mqttUsername').value;
             const password = document.getElementById('mqttPassword').value;
             
