@@ -602,9 +602,10 @@
         <h1>🐠 Hệ Thống Bể Cá IoT v2.0 🐠</h1>
         
         <div class="info-note">
-            <strong>ℹ️ Lưu ý:</strong> Trang web này kết nối trực tiếp đến MQTT broker qua WebSocket. 
-            Broker phải hỗ trợ WebSocket. 
-            Ví dụ: test.mosquitto.org:8081 hoặc broker.hivemq.com:8000
+            <strong>ℹ️ Lưu ý:</strong> Trang web này kết nối trực tiếp đến MQTT broker qua WebSocket.<br>
+            • <strong>Local (file:// hoặc http://)</strong>: Dùng broker WS thường (vd: test.mosquitto.org:8081)<br>
+            • <strong>GitHub Pages (https://)</strong>: Cần broker WSS bảo mật (vd: test.mosquitto.org:8081 với WSS)<br>
+            • <strong>Khuyến nghị</strong>: broker.hivemq.com:8884 (hỗ trợ WSS) hoặc broker.emqx.io:8084
         </div>
         
         <!-- Cấu hình MQTT -->
@@ -1076,7 +1077,9 @@
             const username = document.getElementById('mqttUsername').value;
             const password = document.getElementById('mqttPassword').value;
             
-            const url = `ws://${broker}:${port}/mqtt`;
+            // Tự động chọn ws:// hoặc wss:// dựa trên trang hiện tại
+            const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+            const url = `${protocol}${broker}:${port}/mqtt`;
             
             addLog(`Đang kết nối đến ${url}...`, 'sent');
             
@@ -1156,6 +1159,13 @@
             
             mqttClient.on('error', (err) => {
                 addLog(`❌ Lỗi: ${err.message}`, 'error');
+                
+                // Kiểm tra lỗi Mixed Content
+                if (window.location.protocol === 'https:' && err.message.includes('WebSocket')) {
+                    addLog(`⚠️ Lỗi bảo mật: Trang HTTPS không thể kết nối WS (không mã hóa)`, 'error');
+                    addLog(`💡 Giải pháp: Đổi broker sang WSS hoặc dùng trang HTTP local`, 'error');
+                    showToast('⚠️ Lỗi Mixed Content: Cần broker hỗ trợ WSS (port 8883/8884)', 'error', 5000);
+                }
             });
             
             mqttClient.on('close', () => {
