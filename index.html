@@ -1075,12 +1075,7 @@
             
             // Nếu dùng HTTPS và port là 8081 (WS thường), tự động đổi sang port WSS
             if (window.location.protocol === 'https:' && port === '8081') {
-                if (broker.includes('mosquitto')) {
-                    // test.mosquitto.org: WSS port là 8081 (cũng 8081 nhưng path khác)
-                    addLog('⚠️ GitHub Pages (HTTPS) - Đổi sang broker hỗ trợ WSS...', 'sent');
-                    // Khuyến nghị đổi broker
-                    showToast('⚠️ test.mosquitto.org:8081 không hỗ trợ WSS! Hãy dùng broker.hivemq.com:8884', 'warning', 6000);
-                } else if (broker.includes('hivemq')) {
+                if (broker.includes('hivemq')) {
                     port = '8884'; // HiveMQ WSS port
                     addLog('ℹ️ Tự động chuyển sang port WSS: 8884', 'sent');
                 } else if (broker.includes('emqx')) {
