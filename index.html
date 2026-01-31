@@ -1052,6 +1052,48 @@
             document.getElementById('historyModal').style.display = 'none';
         }
         
+        // Load lần cho ăn cuối từ Google Sheets
+        async function loadLastFeedingTime() {
+            if (!isGoogleSheetsConfigured()) {
+                // Thử load từ localStorage
+                const savedLastFeed = localStorage.getItem('lastFeedTime');
+                if (savedLastFeed) {
+                    document.getElementById('lastFeed').textContent = savedLastFeed;
+                }
+                return;
+            }
+            
+            try {
+                const result = await fetchHistoryFromGoogleSheets();
+                
+                if (result.success && result.data && result.data.length > 0) {
+                    // Tìm sự kiện "Cho cá ăn" gần nhất
+                    const feedEvent = result.data.find(item => 
+                        item.eventType && item.eventType.toLowerCase().includes('cho cá ăn')
+                    );
+                    
+                    if (feedEvent && feedEvent.timestamp) {
+                        document.getElementById('lastFeed').textContent = feedEvent.timestamp;
+                        // Lưu vào localStorage để hiển thị nhanh lần sau
+                        localStorage.setItem('lastFeedTime', feedEvent.timestamp);
+                    } else {
+                        // Không có sự kiện cho ăn, thử load từ localStorage
+                        const savedLastFeed = localStorage.getItem('lastFeedTime');
+                        if (savedLastFeed) {
+                            document.getElementById('lastFeed').textContent = savedLastFeed;
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Lỗi load lần cho ăn cuối:', error);
+                // Fallback: load từ localStorage
+                const savedLastFeed = localStorage.getItem('lastFeedTime');
+                if (savedLastFeed) {
+                    document.getElementById('lastFeed').textContent = savedLastFeed;
+                }
+            }
+        }
+        
         // Load và hiển thị lịch sử
         async function loadHistory() {
             const contentDiv = document.getElementById('historyContent');
@@ -1707,7 +1749,11 @@
                     const now = new Date();
                     const dateStr = now.toLocaleDateString('vi-VN'); // dd/mm/yyyy
                     const timeStr = now.toLocaleTimeString('vi-VN'); // hh:mm:ss
-                    document.getElementById('lastFeed').textContent = `${dateStr} ${timeStr}`;
+                    const lastFeedStr = `${dateStr} ${timeStr}`;
+                    document.getElementById('lastFeed').textContent = lastFeedStr;
+                    
+                    // Lưu vào localStorage để hiển thị khi load lại trang
+                    localStorage.setItem('lastFeedTime', lastFeedStr);
                     
                     // Reset trạng thái chờ
                     pendingFeedId = null;
@@ -1848,6 +1894,9 @@
         
         // Load cấu hình từ localStorage
         window.addEventListener('load', () => {
+            // Load lần cho ăn cuối từ Google Sheets hoặc localStorage
+            loadLastFeedingTime();
+            
             // Tự động kết nối MQTT khi mở web
             connectMQTT();
         });
