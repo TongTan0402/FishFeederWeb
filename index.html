@@ -1755,6 +1755,9 @@
                     // Lưu vào localStorage để hiển thị khi load lại trang
                     localStorage.setItem('lastFeedTime', lastFeedStr);
                     
+                    // Ghi log lên Google Sheets (chỉ khi cho ăn thành công)
+                    logToGoogleSheets('Cho cá ăn', 'Feeding', lastFeedStr);
+                    
                     // Reset trạng thái chờ
                     pendingFeedId = null;
                     const feedBtn = document.getElementById('feedBtn');
@@ -1887,9 +1890,6 @@
                     feedBtn.textContent = 'CHO ĂN NGAY';
                 }
             }, 10000);
-            
-            // Ghi log lên Google Sheets
-            logToGoogleSheets('Cho cá ăn', 'Feeding', feedId);
         }
         
         // Load cấu hình từ localStorage
