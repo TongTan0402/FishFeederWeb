@@ -595,6 +595,193 @@
             background: #ffc107;
             color: #333;
         }
+
+        /* History Button */
+        .history-btn {
+            position: fixed;
+            bottom: 30px;
+            left: 30px;
+            background: #17a2b8;
+            color: white;
+            border: none;
+            border-radius: 50px;
+            padding: 15px 25px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            box-shadow: 0 4px 0 #117a8b, 0 5px 15px rgba(0,0,0,0.3);
+            z-index: 999;
+        }
+
+        .history-btn:hover {
+            box-shadow: 0 5px 0 #117a8b, 0 7px 20px rgba(0,0,0,0.35);
+            transform: translateY(-2px);
+        }
+
+        .history-btn:active {
+            box-shadow: 0 2px 0 #117a8b, 0 3px 8px rgba(0,0,0,0.25);
+            transform: translateY(2px);
+        }
+
+        /* History Modal Styles */
+        .history-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            animation: fadeIn 0.3s;
+        }
+
+        .history-modal-content {
+            background-color: #fefefe;
+            margin: 3% auto;
+            padding: 30px;
+            border-radius: 15px;
+            width: 95%;
+            max-width: 900px;
+            max-height: 85vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            animation: slideDown 0.3s;
+        }
+
+        .history-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        .history-table th {
+            background: #667eea;
+            color: white;
+            padding: 12px 15px;
+            text-align: left;
+            font-weight: bold;
+            position: sticky;
+            top: 0;
+        }
+
+        .history-table td {
+            padding: 10px 15px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .history-table tr:hover {
+            background: #f5f5f5;
+        }
+
+        .history-table tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+
+        .history-table tr:nth-child(even):hover {
+            background: #f0f0f0;
+        }
+
+        .event-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .event-badge.outlet-on {
+            background: #28a745;
+            color: white;
+        }
+
+        .event-badge.outlet-off {
+            background: #dc3545;
+            color: white;
+        }
+
+        .event-badge.feeding {
+            background: #ff6b6b;
+            color: white;
+        }
+
+        .event-badge.schedule {
+            background: #667eea;
+            color: white;
+        }
+
+        .event-badge.rename {
+            background: #ffc107;
+            color: #333;
+        }
+
+        .history-loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .history-loading .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .history-empty {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .history-empty-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+
+        .refresh-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            box-shadow: 0 3px 0 #1e7e34, 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        .refresh-btn:hover {
+            box-shadow: 0 4px 0 #1e7e34, 0 6px 12px rgba(0,0,0,0.25);
+            transform: translateY(-1px);
+        }
+
+        .refresh-btn:active {
+            box-shadow: 0 1px 0 #1e7e34, 0 2px 4px rgba(0,0,0,0.2);
+            transform: translateY(2px);
+        }
+
+        .history-header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .history-count {
+            color: #666;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
@@ -696,6 +883,33 @@
     
     <!-- Toast Notification Container -->
     <div id="toastContainer"></div>
+
+    <!-- History Button -->
+    <button class="history-btn" onclick="openHistoryModal()" title="Xem lịch sử thay đổi">
+        📜 Lịch Sử
+    </button>
+
+    <!-- Modal Lịch Sử Thay Đổi -->
+    <div id="historyModal" class="history-modal">
+        <div class="history-modal-content">
+            <div class="modal-header">
+                <h2>📜 Lịch Sử Thay Đổi</h2>
+                <button class="close-btn" onclick="closeHistoryModal()">×</button>
+            </div>
+            
+            <div class="history-header-row">
+                <span class="history-count" id="historyCount">Đang tải...</span>
+                <button class="refresh-btn" onclick="loadHistory()">🔄 Làm Mới</button>
+            </div>
+            
+            <div id="historyContent">
+                <div class="history-loading">
+                    <div class="spinner"></div>
+                    <p>Đang tải lịch sử...</p>
+                </div>
+            </div>
+        </div>
+    </div>
     
     <!-- Modal Chỉnh Sửa Outlet -->
     <div id="editModal" class="modal">
@@ -759,6 +973,201 @@
             3: "Outlet 3",
             4: "Outlet 4"
         };
+        
+        // ===== CẤU HÌNH GOOGLE SHEETS =====
+        // CHỈ CẦN THAY ĐỔI URL Ở ĐÂY - một chỗ duy nhất!
+        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw1_0NuTH3re4PzyXetknkizLStWS0a_cm0dDDfMpoS_QivnEIohizvpveHsKS3GFsgsw/exec';
+        
+        // Kiểm tra URL đã được cấu hình chưa (URL phải chứa /macros/s/ và /exec)
+        function isGoogleSheetsConfigured() {
+            return GOOGLE_SCRIPT_URL && 
+                   GOOGLE_SCRIPT_URL.includes('/macros/s/') && 
+                   GOOGLE_SCRIPT_URL.includes('/exec');
+        }
+        
+        // ===== GOOGLE SHEETS FUNCTIONS =====
+        
+        // Ghi log lên Google Sheets
+        async function logToGoogleSheets(eventType, detail, value) {
+            // Kiểm tra đã cấu hình chưa
+            if (!isGoogleSheetsConfigured()) {
+                console.warn('⚠️ Chưa cấu hình Google Sheets URL. Xem file GOOGLE_SHEETS_SETUP.md');
+                return;
+            }
+            
+            try {
+                const response = await fetch(GOOGLE_SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors', // Google Apps Script yêu cầu no-cors
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        eventType: eventType,
+                        detail: detail,
+                        value: value
+                    })
+                });
+                
+                console.log('📝 Đã ghi log: ', eventType, detail, value);
+                
+            } catch (error) {
+                console.error('❌ Lỗi ghi log:', error);
+            }
+        }
+        
+        // Đọc lịch sử từ Google Sheets
+        async function fetchHistoryFromGoogleSheets() {
+            // Kiểm tra đã cấu hình chưa
+            if (!isGoogleSheetsConfigured()) {
+                return { success: false, error: 'Chưa cấu hình Google Sheets URL' };
+            }
+            
+            try {
+                const response = await fetch(`${GOOGLE_SCRIPT_URL}?limit=100`, {
+                    method: 'GET',
+                });
+                
+                const data = await response.json();
+                return data;
+                
+            } catch (error) {
+                console.error('❌ Lỗi đọc lịch sử:', error);
+                return { success: false, error: error.message };
+            }
+        }
+        
+        // Mở modal lịch sử
+        function openHistoryModal() {
+            document.getElementById('historyModal').style.display = 'block';
+            loadHistory();
+        }
+        
+        // Đóng modal lịch sử
+        function closeHistoryModal() {
+            document.getElementById('historyModal').style.display = 'none';
+        }
+        
+        // Load và hiển thị lịch sử
+        async function loadHistory() {
+            const contentDiv = document.getElementById('historyContent');
+            const countSpan = document.getElementById('historyCount');
+            
+            // Hiển thị loading
+            contentDiv.innerHTML = `
+                <div class="history-loading">
+                    <div class="spinner"></div>
+                    <p>Đang tải lịch sử...</p>
+                </div>
+            `;
+            countSpan.textContent = 'Đang tải...';
+            
+            // Kiểm tra cấu hình
+            if (!isGoogleSheetsConfigured()) {
+                contentDiv.innerHTML = `
+                    <div class="history-empty">
+                        <div class="history-empty-icon">⚙️</div>
+                        <p><strong>Chưa cấu hình Google Sheets</strong></p>
+                        <p style="margin-top: 10px; font-size: 14px;">
+                            Vui lòng xem file <code>GOOGLE_SHEETS_SETUP.md</code> để thiết lập.
+                        </p>
+                    </div>
+                `;
+                countSpan.textContent = 'Chưa cấu hình';
+                return;
+            }
+            
+            // Fetch dữ liệu
+            const result = await fetchHistoryFromGoogleSheets();
+            
+            if (!result.success) {
+                contentDiv.innerHTML = `
+                    <div class="history-empty">
+                        <div class="history-empty-icon">❌</div>
+                        <p><strong>Lỗi tải lịch sử</strong></p>
+                        <p style="margin-top: 10px; font-size: 14px; color: #dc3545;">
+                            ${result.error || 'Không thể kết nối đến Google Sheets'}
+                        </p>
+                    </div>
+                `;
+                countSpan.textContent = 'Lỗi';
+                return;
+            }
+            
+            const history = result.data || [];
+            
+            if (history.length === 0) {
+                contentDiv.innerHTML = `
+                    <div class="history-empty">
+                        <div class="history-empty-icon">📭</div>
+                        <p><strong>Chưa có lịch sử</strong></p>
+                        <p style="margin-top: 10px; font-size: 14px;">
+                            Các thay đổi sẽ được ghi lại tại đây.
+                        </p>
+                    </div>
+                `;
+                countSpan.textContent = '0 sự kiện';
+                return;
+            }
+            
+            // Hiển thị bảng lịch sử
+            countSpan.textContent = `${history.length} sự kiện gần nhất`;
+            
+            let tableHTML = `
+                <table class="history-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 180px;">Thời gian</th>
+                            <th style="width: 150px;">Loại sự kiện</th>
+                            <th>Chi tiết</th>
+                            <th style="width: 120px;">Giá trị</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            history.forEach(item => {
+                const badgeClass = getEventBadgeClass(item.eventType);
+                tableHTML += `
+                    <tr>
+                        <td>${item.timestamp || ''}</td>
+                        <td><span class="event-badge ${badgeClass}">${item.eventType || ''}</span></td>
+                        <td>${item.detail || ''}</td>
+                        <td><strong>${item.value || ''}</strong></td>
+                    </tr>
+                `;
+            });
+            
+            tableHTML += `
+                    </tbody>
+                </table>
+            `;
+            
+            contentDiv.innerHTML = tableHTML;
+        }
+        
+        // Lấy CSS class cho badge dựa trên loại sự kiện
+        function getEventBadgeClass(eventType) {
+            if (!eventType) return '';
+            
+            const type = eventType.toLowerCase();
+            
+            if (type.includes('bật') || type.includes('on')) return 'outlet-on';
+            if (type.includes('tắt') || type.includes('off')) return 'outlet-off';
+            if (type.includes('ăn') || type.includes('feed')) return 'feeding';
+            if (type.includes('lịch') || type.includes('schedule')) return 'schedule';
+            if (type.includes('tên') || type.includes('name') || type.includes('rename')) return 'rename';
+            
+            return '';
+        }
+        
+        // Click bên ngoài history modal để đóng
+        window.addEventListener('click', function(event) {
+            const historyModal = document.getElementById('historyModal');
+            if (event.target === historyModal) {
+                closeHistoryModal();
+            }
+        });
         
         // Hàm hiển thị toast notification
         function showToast(message, type = 'success', duration = 3000) {
@@ -929,6 +1338,7 @@
             
             // Thêm lịch cho ăn
             schedules.feeding = [];
+            const feedingTimes = [];
             for (let i = 0; i < 4; i++) {
                 const enabled = document.getElementById(`feeding_s${i}_enable`).checked;
                 const timeValue = document.getElementById(`feeding_s${i}_time`).value;
@@ -939,6 +1349,11 @@
                     hour: parseInt(time[0]),
                     minute: parseInt(time[1])
                 });
+                
+                // Thu thập các lịch đã bật để log
+                if (enabled) {
+                    feedingTimes.push(timeValue);
+                }
                 
                 // Lưu vào localStorage
                 const scheduleKey = `feeding_schedule${i}`;
@@ -952,6 +1367,12 @@
             mqttClient.publish('fishfeeder/schedule', JSON.stringify(schedules), { retain: true });
             addLog('📤 Lưu lịch cho ăn', 'sent');
             
+            // Ghi log lịch cho ăn lên Google Sheets
+            const feedingSummary = feedingTimes.length > 0 
+                ? feedingTimes.join(', ') 
+                : 'Không có lịch';
+            logToGoogleSheets('Cập nhật lịch cho ăn', 'Feeding Schedule', feedingSummary);
+            
             closeFeedingModal();
             showToast('✅ Đã lưu lịch cho ăn!', 'success');
         }
@@ -964,6 +1385,7 @@
             }
             
             const outlet = currentEditingOutlet;
+            const oldName = outletNames[outlet];
             
             // Lưu tên mới - PUBLISH VÀO TOPIC RIÊNG
             const newName = document.getElementById('modalOutletName').value.trim();
@@ -974,6 +1396,11 @@
                 // Gửi tên qua MQTT vào topic riêng với retained flag
                 mqttClient.publish(`fishfeeder/outlet${outlet}/name`, newName, { retain: true });
                 addLog(`📤 Cập nhật tên outlet ${outlet}: ${newName}`, 'sent');
+                
+                // Ghi log đổi tên lên Google Sheets (chỉ khi tên thay đổi)
+                if (newName !== oldName) {
+                    logToGoogleSheets('Đổi tên', `Outlet ${outlet}`, `${oldName} → ${newName}`);
+                }
             }
             
             // Lưu lịch trình - CHỈ LƯU OUTLET ĐANG EDIT
@@ -1005,6 +1432,13 @@
             const scheduleJSON = JSON.stringify({ schedules: schedules });
             mqttClient.publish(`fishfeeder/outlet${outlet}/schedule`, scheduleJSON, { retain: true });
             addLog(`📤 Lưu lịch trình Outlet ${outlet}`, 'sent');
+            
+            // Ghi log cập nhật lịch lên Google Sheets
+            const enabledSchedules = schedules.filter(s => s.enabled);
+            const schedulesSummary = enabledSchedules.length > 0 
+                ? enabledSchedules.map(s => `${String(s.hour).padStart(2,'0')}:${String(s.minute).padStart(2,'0')} ${s.action ? 'BẬT' : 'TẮT'}`).join(', ')
+                : 'Không có lịch';
+            logToGoogleSheets('Cập nhật lịch', outletNames[outlet], schedulesSummary);
             
             // Đóng modal
             closeEditModal();
@@ -1302,6 +1736,14 @@
             mqttClient.publish(`fishfeeder/outlet${outlet}/control`, newState ? 'ON' : 'OFF');
             addLog(`📤 Gửi: outlet${outlet}/control = ${newState ? 'ON' : 'OFF'}`, 'sent');
             
+            // Ghi log lên Google Sheets
+            const outletName = outletNames[outlet] || `Outlet ${outlet}`;
+            logToGoogleSheets(
+                newState ? 'Bật ổ cắm' : 'Tắt ổ cắm',
+                outletName,
+                newState ? 'ON' : 'OFF'
+            );
+            
             // Hiển thị trạng thái "đang chờ"
             btn.disabled = true;
             btn.textContent = '⏳';
@@ -1326,6 +1768,9 @@
             mqttClient.publish('fishfeeder/feed', 'FEED');
             addLog('📤 Gửi lệnh: CHO ĂN', 'sent');
             showToast('🐠 Đã gửi lệnh cho cá ăn!', 'success');
+            
+            // Ghi log lên Google Sheets
+            logToGoogleSheets('Cho cá ăn', 'Feeding', 'FEED');
         }
         
         // Load cấu hình từ localStorage
