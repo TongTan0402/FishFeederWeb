@@ -1740,29 +1740,61 @@
             
             // ===== XỬ LÝ ACK CHO ĂN =====
             else if (topic === 'fishfeeder/feed/ack') {
-                // Nhận xác nhận đã cho ăn từ ESP
-                if (message === pendingFeedId) {
-                    addLog(`✅ Xác nhận đã cho ăn: ${message}`, 'received');
-                    showToast('✅ Cá đã được cho ăn thành công!', 'success');
+                // Nhận xác nhận đã cho ăn từ ESP (có thể là ACK cho lệnh đang chờ hoặc lệnh cũ khi offline)
+                if (message && message.startsWith('FEED_')) {
+                    // Parse thời gian từ feedId (format: FEED_ddMMyyHHmmss)
+                    const feedIdPart = message.substring(5); // bỏ "FEED_"
+                    let lastFeedStr;
                     
-                    // Hiển thị ngày giờ đầy đủ
-                    const now = new Date();
-                    const dateStr = now.toLocaleDateString('vi-VN'); // dd/mm/yyyy
-                    const timeStr = now.toLocaleTimeString('vi-VN'); // hh:mm:ss
-                    const lastFeedStr = `${dateStr} ${timeStr}`;
+                    if (feedIdPart.length === 12) {
+                        // Parse ddMMyyHHmmss
+                        const dd = feedIdPart.substring(0, 2);
+                        const MM = feedIdPart.substring(2, 4);
+                        const yy = feedIdPart.substring(4, 6);
+                        const HH = feedIdPart.substring(6, 8);
+                        const mm = feedIdPart.substring(8, 10);
+                        const ss = feedIdPart.substring(10, 12);
+                        lastFeedStr = `${dd}/${MM}/20${yy} ${HH}:${mm}:${ss}`;
+                    } else {
+                        // Fallback: dùng thời gian hiện tại
+                        const now = new Date();
+                        const dateStr = now.toLocaleDateString('vi-VN');
+                        const timeStr = now.toLocaleTimeString('vi-VN');
+                        lastFeedStr = `${dateStr} ${timeStr}`;
+                    }
+                    
+                    // Kiểm tra xem đây là ACK cho lệnh đang chờ hay lệnh cũ (offline)
+                    const isCurrentRequest = (message === pendingFeedId);
+                    
+                    if (isCurrentRequest) {
+                        addLog(`✅ Xác nhận đã cho ăn: ${message}`, 'received');
+                        showToast('✅ Cá đã được cho ăn thành công!', 'success');
+                        
+                        // Clear timeout
+                        if (feedTimeout) {
+                            clearTimeout(feedTimeout);
+                            feedTimeout = null;
+                        }
+                        
+                        // Reset trạng thái chờ
+                        pendingFeedId = null;
+                        const feedBtn = document.getElementById('feedBtn');
+                        feedBtn.disabled = false;
+                        feedBtn.textContent = 'CHO ĂN NGAY';
+                    } else {
+                        // ACK cho lệnh cũ (ESP đã cho ăn khi offline và vừa kết nối lại)
+                        addLog(`📩 ACK cho ăn (từ lúc offline): ${message}`, 'received');
+                        showToast(`🐠 ESP đã cho ăn lúc ${lastFeedStr}`, 'info', 4000);
+                    }
+                    
+                    // Cập nhật hiển thị lần cho ăn cuối
                     document.getElementById('lastFeed').textContent = lastFeedStr;
                     
-                    // Lưu vào localStorage để hiển thị khi load lại trang
+                    // Lưu vào localStorage
                     localStorage.setItem('lastFeedTime', lastFeedStr);
                     
-                    // Ghi log lên Google Sheets (chỉ khi cho ăn thành công)
+                    // Ghi log lên Google Sheets (cả ACK hiện tại và ACK offline)
                     logToGoogleSheets('Cho cá ăn', 'Feeding', lastFeedStr);
-                    
-                    // Reset trạng thái chờ
-                    pendingFeedId = null;
-                    const feedBtn = document.getElementById('feedBtn');
-                    feedBtn.disabled = false;
-                    feedBtn.textContent = 'CHO ĂN NGAY';
                 }
             }
         }
