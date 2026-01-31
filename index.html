@@ -1796,8 +1796,16 @@
                 return;
             }
             
-            // Tạo ID duy nhất cho lệnh (timestamp)
-            const feedId = `FEED_${Date.now()}`;
+            // Tạo ID duy nhất cho lệnh (ddMMyyHHmmss)
+            // Ví dụ: 310126110601 = 31/01/26 11:06:01
+            const now = new Date();
+            const dd = String(now.getDate()).padStart(2, '0');
+            const MM = String(now.getMonth() + 1).padStart(2, '0');
+            const yy = String(now.getFullYear()).slice(-2);
+            const HH = String(now.getHours()).padStart(2, '0');
+            const mm = String(now.getMinutes()).padStart(2, '0');
+            const ss = String(now.getSeconds()).padStart(2, '0');
+            const feedId = `FEED_${dd}${MM}${yy}${HH}${mm}${ss}`;
             pendingFeedId = feedId;
             
             // Gửi lệnh với retained flag = true (để ESP nhận được khi kết nối lại)
