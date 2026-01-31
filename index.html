@@ -1685,7 +1685,12 @@
                     const data = JSON.parse(message);
                     document.getElementById('espIP').textContent = data.ip || 'N/A';
                     document.getElementById('wifiRSSI').textContent = data.rssi ? `${data.rssi} dBm` : 'N/A';
-                    document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('vi-VN');
+                    
+                    // Hiển thị ngày giờ đầy đủ
+                    const now = new Date();
+                    const dateStr = now.toLocaleDateString('vi-VN');
+                    const timeStr = now.toLocaleTimeString('vi-VN');
+                    document.getElementById('lastUpdate').textContent = `${dateStr} ${timeStr}`;
                 } catch (e) {
                     addLog(`⚠️ Lỗi parse info: ${e}`, 'error');
                 }
@@ -1697,7 +1702,12 @@
                 if (message === pendingFeedId) {
                     addLog(`✅ Xác nhận đã cho ăn: ${message}`, 'received');
                     showToast('✅ Cá đã được cho ăn thành công!', 'success');
-                    document.getElementById('lastFeed').textContent = new Date().toLocaleTimeString('vi-VN');
+                    
+                    // Hiển thị ngày giờ đầy đủ
+                    const now = new Date();
+                    const dateStr = now.toLocaleDateString('vi-VN'); // dd/mm/yyyy
+                    const timeStr = now.toLocaleTimeString('vi-VN'); // hh:mm:ss
+                    document.getElementById('lastFeed').textContent = `${dateStr} ${timeStr}`;
                     
                     // Reset trạng thái chờ
                     pendingFeedId = null;
