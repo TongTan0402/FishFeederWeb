@@ -974,6 +974,10 @@
             4: "Outlet 4"
         };
         
+        // ===== BIẾN CHO LỆNH CHO ĂN =====
+        let pendingFeedId = null;  // ID lệnh cho ăn đang chờ xác nhận
+        let feedTimeout = null;     // Timeout để retry
+        
         // ===== CẤU HÌNH GOOGLE SHEETS =====
         // CHỈ CẦN THAY ĐỔI URL Ở ĐÂY - một chỗ duy nhất!
         const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw1_0NuTH3re4PzyXetknkizLStWS0a_cm0dDDfMpoS_QivnEIohizvpveHsKS3GFsgsw/exec';
@@ -1566,6 +1570,11 @@
                     if (!err) addLog('📥 Subscribed: fishfeeder/info', 'received');
                 });
                 
+                // Subscribe topic ACK cho ăn
+                mqttClient.subscribe('fishfeeder/feed/ack', (err) => {
+                    if (!err) addLog('📥 Subscribed: fishfeeder/feed/ack', 'received');
+                });
+                
                 enableControls(true);
             });
             
@@ -1681,6 +1690,22 @@
                     addLog(`⚠️ Lỗi parse info: ${e}`, 'error');
                 }
             }
+            
+            // ===== XỬ LÝ ACK CHO ĂN =====
+            else if (topic === 'fishfeeder/feed/ack') {
+                // Nhận xác nhận đã cho ăn từ ESP
+                if (message === pendingFeedId) {
+                    addLog(`✅ Xác nhận đã cho ăn: ${message}`, 'received');
+                    showToast('✅ Cá đã được cho ăn thành công!', 'success');
+                    document.getElementById('lastFeed').textContent = new Date().toLocaleTimeString('vi-VN');
+                    
+                    // Reset trạng thái chờ
+                    pendingFeedId = null;
+                    const feedBtn = document.getElementById('feedBtn');
+                    feedBtn.disabled = false;
+                    feedBtn.textContent = 'CHO ĂN NGAY';
+                }
+            }
         }
         
         // Xử lý schedule message cho 1 outlet
@@ -1758,19 +1783,49 @@
             }, 3000);
         }
         
-        // Cho cá ăn
+        // Cho cá ăn - với ACK đảm bảo thực hiện
         function feedFish() {
             if (!mqttClient || !isConnected) {
                 showToast('⚠️ Vui lòng kết nối MQTT trước!', 'warning');
                 return;
             }
             
-            mqttClient.publish('fishfeeder/feed', 'FEED');
-            addLog('📤 Gửi lệnh: CHO ĂN', 'sent');
-            showToast('🐠 Đã gửi lệnh cho cá ăn!', 'success');
+            // Nếu đang chờ xác nhận lệnh trước đó
+            if (pendingFeedId) {
+                showToast('⏳ Đang chờ xác nhận lệnh trước...', 'warning');
+                return;
+            }
+            
+            // Tạo ID duy nhất cho lệnh (timestamp)
+            const feedId = `FEED_${Date.now()}`;
+            pendingFeedId = feedId;
+            
+            // Gửi lệnh với retained flag = true (để ESP nhận được khi kết nối lại)
+            mqttClient.publish('fishfeeder/feed', feedId, { retain: true });
+            addLog(`📤 Gửi lệnh cho ăn: ${feedId}`, 'sent');
+            
+            // Cập nhật UI - đang chờ
+            const feedBtn = document.getElementById('feedBtn');
+            feedBtn.disabled = true;
+            feedBtn.textContent = '⏳ Đang chờ...';
+            
+            showToast('🐠 Đang gửi lệnh cho cá ăn...', 'info');
+            
+            // Timeout 10 giây - nếu không nhận được ACK
+            feedTimeout = setTimeout(() => {
+                if (pendingFeedId === feedId) {
+                    addLog(`⚠️ Timeout - không nhận được xác nhận`, 'error');
+                    showToast('⚠️ Không nhận được xác nhận từ ESP32. Lệnh vẫn được lưu, ESP sẽ thực hiện khi kết nối lại.', 'warning', 5000);
+                    
+                    // Cho phép gửi lại
+                    pendingFeedId = null;
+                    feedBtn.disabled = false;
+                    feedBtn.textContent = 'CHO ĂN NGAY';
+                }
+            }, 10000);
             
             // Ghi log lên Google Sheets
-            logToGoogleSheets('Cho cá ăn', 'Feeding', 'FEED');
+            logToGoogleSheets('Cho cá ăn', 'Feeding', feedId);
         }
         
         // Load cấu hình từ localStorage
