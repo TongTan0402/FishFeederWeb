@@ -978,6 +978,9 @@
         let pendingFeedId = null;  // ID lệnh cho ăn đang chờ xác nhận
         let feedTimeout = null;     // Timeout để retry
         
+        // ===== LỊCH CHO ĂN TỪ MQTT =====
+        let feedingSchedulesFromMQTT = [];  // Lịch cho ăn nhận từ MQTT
+        
         // ===== CẤU HÌNH GOOGLE SHEETS =====
         // CHỈ CẦN THAY ĐỔI URL Ở ĐÂY - một chỗ duy nhất!
         const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw1_0NuTH3re4PzyXetknkizLStWS0a_cm0dDDfMpoS_QivnEIohizvpveHsKS3GFsgsw/exec';
@@ -1354,18 +1357,27 @@
         
         // Mở modal lịch cho ăn
         function openFeedingModal() {
-            // Load lịch cho ăn hiện tại từ localStorage
+            // Load lịch cho ăn từ MQTT (uu tiên) hoặc localStorage
             for (let i = 0; i < 4; i++) {
-                const scheduleKey = `feeding_schedule${i}`;
-                const savedSchedule = localStorage.getItem(scheduleKey);
-                
-                if (savedSchedule) {
-                    const schedule = JSON.parse(savedSchedule);
-                    document.getElementById(`feeding_s${i}_enable`).checked = schedule.enabled;
-                    document.getElementById(`feeding_s${i}_time`).value = schedule.time;
+                // Ưu tiên dùng dữ liệu từ MQTT
+                if (feedingSchedulesFromMQTT && feedingSchedulesFromMQTT[i]) {
+                    const schedule = feedingSchedulesFromMQTT[i];
+                    document.getElementById(`feeding_s${i}_enable`).checked = schedule.enabled || false;
+                    const timeStr = `${String(schedule.hour || 0).padStart(2,'0')}:${String(schedule.minute || 0).padStart(2,'0')}`;
+                    document.getElementById(`feeding_s${i}_time`).value = timeStr;
                 } else {
-                    document.getElementById(`feeding_s${i}_enable`).checked = false;
-                    document.getElementById(`feeding_s${i}_time`).value = '00:00';
+                    // Fallback: load từ localStorage
+                    const scheduleKey = `feeding_schedule${i}`;
+                    const savedSchedule = localStorage.getItem(scheduleKey);
+                    
+                    if (savedSchedule) {
+                        const schedule = JSON.parse(savedSchedule);
+                        document.getElementById(`feeding_s${i}_enable`).checked = schedule.enabled;
+                        document.getElementById(`feeding_s${i}_time`).value = schedule.time;
+                    } else {
+                        document.getElementById(`feeding_s${i}_enable`).checked = false;
+                        document.getElementById(`feeding_s${i}_time`).value = '00:00';
+                    }
                 }
             }
             
@@ -1633,6 +1645,11 @@
                     if (!err) addLog('📥 Subscribed: fishfeeder/feed/ack', 'received');
                 });
                 
+                // Subscribe topic lịch cho ăn + outlets
+                mqttClient.subscribe('fishfeeder/schedule', (err) => {
+                    if (!err) addLog('📥 Subscribed: fishfeeder/schedule', 'received');
+                });
+                
                 enableControls(true);
             });
             
@@ -1751,6 +1768,28 @@
                     document.getElementById('lastUpdate').textContent = `${dateStr} ${timeStr}`;
                 } catch (e) {
                     addLog(`⚠️ Lỗi parse info: ${e}`, 'error');
+                }
+            }
+            
+            // ===== XỬ LÝ LỊCH CHO ĂN TỪ MQTT =====
+            else if (topic === 'fishfeeder/schedule') {
+                try {
+                    const data = JSON.parse(message);
+                    if (data.feeding && Array.isArray(data.feeding)) {
+                        feedingSchedulesFromMQTT = data.feeding;
+                        addLog(`📅 Đồng bộ lịch cho ăn: ${data.feeding.filter(s => s.enabled).length} lịch`, 'received');
+                        
+                        // Cập nhật localStorage để backup
+                        data.feeding.forEach((schedule, i) => {
+                            const timeStr = `${String(schedule.hour || 0).padStart(2,'0')}:${String(schedule.minute || 0).padStart(2,'0')}`;
+                            localStorage.setItem(`feeding_schedule${i}`, JSON.stringify({
+                                enabled: schedule.enabled || false,
+                                time: timeStr
+                            }));
+                        });
+                    }
+                } catch (e) {
+                    addLog(`⚠️ Lỗi parse schedule: ${e}`, 'error');
                 }
             }
             
