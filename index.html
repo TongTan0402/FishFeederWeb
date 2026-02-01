@@ -990,35 +990,7 @@
         }
         
         // ===== GOOGLE SHEETS FUNCTIONS =====
-        
-        // Ghi log lên Google Sheets (dùng GET với query params)
-        async function logToGoogleSheets(eventType, detail, value) {
-            // Kiểm tra đã cấu hình chưa
-            if (!isGoogleSheetsConfigured()) {
-                console.warn('⚠️ Chưa cấu hình Google Sheets URL. Xem file GOOGLE_SHEETS_SETUP.md');
-                return;
-            }
-            
-            try {
-                // Encode các tham số để truyền qua URL
-                const params = new URLSearchParams({
-                    action: 'log',
-                    eventType: eventType,
-                    detail: detail,
-                    value: String(value)
-                });
-                
-                const url = `${GOOGLE_SCRIPT_URL}?${params.toString()}`;
-                
-                // Dùng GET request với mode no-cors
-                await fetch(url, { mode: 'no-cors' });
-                
-                console.log('📝 Đã ghi log: ', eventType, detail, value);
-                
-            } catch (error) {
-                console.error('❌ Lỗi ghi log:', error);
-            }
-        }
+        // ESP32 handles all logging - web only reads history
         
         // Đọc lịch sử từ Google Sheets
         async function fetchHistoryFromGoogleSheets() {
@@ -1444,12 +1416,7 @@
             // Gửi qua MQTT với retained flag
             mqttClient.publish('fishfeeder/schedule', JSON.stringify(schedules), { retain: true });
             addLog('📤 Lưu lịch cho ăn', 'sent');
-            
-            // Ghi log lịch cho ăn lên Google Sheets
-            const feedingSummary = feedingTimes.length > 0 
-                ? feedingTimes.join(', ') 
-                : 'Không có lịch';
-            logToGoogleSheets('Cập nhật lịch cho ăn', 'Feeding Schedule', feedingSummary);
+            // ESP32 sẽ log khi nhận được schedule update
             
             closeFeedingModal();
             showToast('✅ Đã lưu lịch cho ăn!', 'success');
@@ -1474,11 +1441,7 @@
                 // Gửi tên qua MQTT vào topic riêng với retained flag
                 mqttClient.publish(`fishfeeder/outlet${outlet}/name`, newName, { retain: true });
                 addLog(`📤 Cập nhật tên outlet ${outlet}: ${newName}`, 'sent');
-                
-                // Ghi log đổi tên lên Google Sheets (chỉ khi tên thay đổi)
-                if (newName !== oldName) {
-                    logToGoogleSheets('Đổi tên', `Outlet ${outlet}`, `${oldName} → ${newName}`);
-                }
+                // ESP32 sẽ log khi nhận được name update
             }
             
             // Lưu lịch trình - CHỈ LƯU OUTLET ĐANG EDIT
@@ -1510,13 +1473,7 @@
             const scheduleJSON = JSON.stringify({ schedules: schedules });
             mqttClient.publish(`fishfeeder/outlet${outlet}/schedule`, scheduleJSON, { retain: true });
             addLog(`📤 Lưu lịch trình Outlet ${outlet}`, 'sent');
-            
-            // Ghi log cập nhật lịch lên Google Sheets
-            const enabledSchedules = schedules.filter(s => s.enabled);
-            const schedulesSummary = enabledSchedules.length > 0 
-                ? enabledSchedules.map(s => `${String(s.hour).padStart(2,'0')}:${String(s.minute).padStart(2,'0')} ${s.action ? 'BẬT' : 'TẮT'}`).join(', ')
-                : 'Không có lịch';
-            logToGoogleSheets('Cập nhật lịch', outletNames[outlet], schedulesSummary);
+            // ESP32 sẽ log khi nhận được schedule update
             
             // Đóng modal
             closeEditModal();
