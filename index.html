@@ -991,7 +991,7 @@
         
         // ===== GOOGLE SHEETS FUNCTIONS =====
         
-        // Ghi log lên Google Sheets
+        // Ghi log lên Google Sheets (dùng GET với query params)
         async function logToGoogleSheets(eventType, detail, value) {
             // Kiểm tra đã cấu hình chưa
             if (!isGoogleSheetsConfigured()) {
@@ -1000,18 +1000,18 @@
             }
             
             try {
-                const response = await fetch(GOOGLE_SCRIPT_URL, {
-                    method: 'POST',
-                    mode: 'no-cors', // Google Apps Script yêu cầu no-cors
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        eventType: eventType,
-                        detail: detail,
-                        value: value
-                    })
+                // Encode các tham số để truyền qua URL
+                const params = new URLSearchParams({
+                    action: 'log',
+                    eventType: eventType,
+                    detail: detail,
+                    value: String(value)
                 });
+                
+                const url = `${GOOGLE_SCRIPT_URL}?${params.toString()}`;
+                
+                // Dùng GET request với mode no-cors
+                await fetch(url, { mode: 'no-cors' });
                 
                 console.log('📝 Đã ghi log: ', eventType, detail, value);
                 
@@ -1174,12 +1174,14 @@
             
             history.forEach(item => {
                 const badgeClass = getEventBadgeClass(item.eventType);
+                // Format giá trị - nếu là Date string dài thì format lại
+                let formattedValue = formatHistoryValue(item.value);
                 tableHTML += `
                     <tr>
                         <td>${item.timestamp || ''}</td>
                         <td><span class="event-badge ${badgeClass}">${item.eventType || ''}</span></td>
                         <td>${item.detail || ''}</td>
-                        <td><strong>${item.value || ''}</strong></td>
+                        <td><strong>${formattedValue}</strong></td>
                     </tr>
                 `;
             });
@@ -1190,6 +1192,36 @@
             `;
             
             contentDiv.innerHTML = tableHTML;
+        }
+        
+        // Format giá trị hiển thị trong lịch sử
+        function formatHistoryValue(value) {
+            if (!value) return '';
+            
+            const str = String(value);
+            
+            // Nếu là Date string dài (chứa GMT hoặc Giờ Đông Dương)
+            if (str.includes('GMT') || str.includes('Giờ Đông Dương') || str.includes('1899')) {
+                try {
+                    // Thử parse và format lại
+                    const date = new Date(str);
+                    if (!isNaN(date.getTime()) && date.getFullYear() > 1900) {
+                        return date.toLocaleString('vi-VN', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit'
+                        });
+                    }
+                } catch (e) {
+                    // Ignore parse error
+                }
+            }
+            
+            // Trả về giá trị gốc
+            return str;
         }
         
         // Lấy CSS class cho badge dựa trên loại sự kiện
