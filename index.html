@@ -1148,9 +1148,11 @@
                 const badgeClass = getEventBadgeClass(item.eventType);
                 // Format giá trị - nếu là Date string dài thì format lại
                 let formattedValue = formatHistoryValue(item.value);
+                // Format timestamp sang DD/MM/YYYY
+                let formattedTimestamp = formatTimestamp(item.timestamp);
                 tableHTML += `
                     <tr>
-                        <td>${item.timestamp || ''}</td>
+                        <td>${formattedTimestamp}</td>
                         <td><span class="event-badge ${badgeClass}">${item.eventType || ''}</span></td>
                         <td>${item.detail || ''}</td>
                         <td><strong>${formattedValue}</strong></td>
@@ -1164,6 +1166,31 @@
             `;
             
             contentDiv.innerHTML = tableHTML;
+        }
+        
+        // Format timestamp từ Google Sheets sang DD/MM/YYYY HH:mm:ss
+        function formatTimestamp(timestamp) {
+            if (!timestamp) return '';
+            
+            const str = String(timestamp);
+            
+            // Nếu format HH:mm:ss M/D/YYYY (từ Google Sheets)
+            const match = str.match(/^(\d{1,2}):(\d{2}):(\d{2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+            if (match) {
+                const [_, hour, min, sec, month, day, year] = match;
+                // Đổi thành DD/MM/YYYY HH:mm:ss
+                return `${day.padStart(2,'0')}/${month.padStart(2,'0')}/${year} ${hour.padStart(2,'0')}:${min}:${sec}`;
+            }
+            
+            // Nếu format M/D/YYYY HH:mm:ss
+            const match2 = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})$/);
+            if (match2) {
+                const [_, month, day, year, hour, min, sec] = match2;
+                return `${day.padStart(2,'0')}/${month.padStart(2,'0')}/${year} ${hour.padStart(2,'0')}:${min}:${sec}`;
+            }
+            
+            // Trả về nguyên bản nếu không match
+            return str;
         }
         
         // Format giá trị hiển thị trong lịch sử
