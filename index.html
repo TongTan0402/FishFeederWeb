@@ -313,24 +313,97 @@
 
         .rule-editor {
             width: 100%;
-            min-height: 96px;
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            padding: 10px;
+            min-height: 150px;
+            border: 1px solid #2f3352;
+            border-radius: 0;
+            padding: 14px;
             font-family: Consolas, 'Courier New', monospace;
-            font-size: 13px;
+            font-size: 14px;
             resize: vertical;
-            line-height: 1.4;
+            line-height: 1.55;
+            background: #181c35;
+            color: #eef3ff;
+            border-top: 0;
+            outline: none;
+        }
+
+        .rule-panel {
+            border: 2px solid #6778df;
+            border-radius: 12px;
+            overflow: hidden;
+            background: #151931;
+            box-shadow: 0 8px 22px rgba(30, 36, 90, 0.35);
+        }
+
+        .rule-panel-header {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            align-items: center;
+            padding: 10px 14px;
+            background: linear-gradient(90deg, #5f73e0 0%, #6c89f0 100%);
+            color: #fff;
+            font-weight: 700;
+            font-size: 13px;
+        }
+
+        .rule-panel-header small {
+            font-weight: 600;
+            opacity: 0.9;
+            font-size: 11px;
+        }
+
+        .rule-chip-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 10px 12px;
+            border-top: 1px solid #262b4e;
+            background: #11152c;
+        }
+
+        .rule-chip {
+            border: 1px solid #2f386a;
+            border-radius: 8px;
+            padding: 6px 10px;
+            background: #1f2649;
+            color: #dbe3ff;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .rule-chip:hover {
+            transform: translateY(-1px);
+            background: #2a3670;
+            border-color: #5d76ff;
+            color: #fff;
+        }
+
+        .rule-chip.danger {
+            background: #442030;
+            border-color: #7f3a58;
+        }
+
+        .rule-chip.danger:hover {
+            background: #5d2a43;
+            border-color: #c55b8a;
+        }
+
+        .rule-panel-footer {
+            padding: 8px 12px;
+            background: #0d1023;
+            border-top: 1px solid #262b4e;
+            color: #9eb1ff;
+            font-family: Consolas, 'Courier New', monospace;
+            font-size: 11px;
         }
 
         .rule-hint {
-            margin-top: 8px;
+            margin: 0;
             font-size: 12px;
-            color: #666;
-            background: #f8f9fa;
-            border-left: 3px solid #667eea;
-            padding: 8px;
-            border-radius: 6px;
+            color: #d4deff;
         }
         
         .log-container {
@@ -453,7 +526,7 @@
             padding: 30px;
             border-radius: 15px;
             width: 90%;
-            max-width: 600px;
+            max-width: 760px;
             max-height: 80vh;
             overflow-y: auto;
             box-shadow: 0 10px 40px rgba(0,0,0,0.3);
@@ -831,6 +904,19 @@
             color: #666;
             font-size: 14px;
         }
+
+        @media (max-width: 768px) {
+            .modal-content {
+                width: 95%;
+                padding: 18px;
+                max-height: 88vh;
+            }
+
+            .rule-panel-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
     </style>
 </head>
 <body>
@@ -1003,9 +1089,34 @@
 
             <div class="modal-input-group">
                 <label>🧠 Rule tự động cho outlet:</label>
-                <textarea class="rule-editor" id="modalOutletRule" placeholder="if(temp > 30) outlet_1 = 1; else outlet_1 = 0;"></textarea>
-                <div class="rule-hint" id="modalRuleHint">
-                    Hỗ trợ cảm biến: temp, light, water. Ví dụ: if(temp > 30) outlet_1 = 1; else outlet_1 = 0;
+                <div class="rule-panel">
+                    <div class="rule-panel-header">
+                        <span>⚙️ Điều Kiện Tự Động (Logic Script)</span>
+                        <small>biến: temp · water · light · outlet_1..4</small>
+                    </div>
+
+                    <textarea
+                        class="rule-editor"
+                        id="modalOutletRule"
+                        placeholder="if((temp > 30 && water < 40) || light < 20) {&#10;  outlet_1 = 1;&#10;} else {&#10;  outlet_1 = 0;&#10;}&#10;"></textarea>
+
+                    <div class="rule-chip-list">
+                        <button type="button" class="rule-chip" onclick="insertRuleSnippet('temp')">🌡️ Nhiệt độ</button>
+                        <button type="button" class="rule-chip" onclick="insertRuleSnippet('water')">💧 Mực nước</button>
+                        <button type="button" class="rule-chip" onclick="insertRuleSnippet('light')">💡 Ánh sáng</button>
+                        <button type="button" class="rule-chip" onclick="insertRuleSnippet('all_sensors')">🎯 3 cảm biến</button>
+                        <button type="button" class="rule-chip" onclick="insertRuleSnippet('outlet_on')">⚡ Outlet đang bật</button>
+                        <button type="button" class="rule-chip" onclick="insertRuleSnippet('blink_for')">🔁 Blink (for)</button>
+                        <button type="button" class="rule-chip" onclick="insertRuleSnippet('blink_fn')">✨ Blink (hàm)</button>
+                        <button type="button" class="rule-chip" onclick="insertRuleSnippet('delay')">⏱️ delay</button>
+                        <button type="button" class="rule-chip danger" onclick="insertRuleSnippet('clear')">🗑️ Xóa</button>
+                    </div>
+
+                    <div class="rule-panel-footer">
+                        <div class="rule-hint" id="modalRuleHint">
+                            Hỗ trợ: temp, water, light, outlet_1..4, toán tử && ||, blink(outlet_x, lần, ms), for + delay.
+                        </div>
+                    </div>
                 </div>
             </div>
             
@@ -1395,6 +1506,105 @@
                 container.appendChild(scheduleDiv);
             }
         }
+
+                function insertTextAtCursor(textarea, text) {
+                        const start = textarea.selectionStart ?? textarea.value.length;
+                        const end = textarea.selectionEnd ?? textarea.value.length;
+                        textarea.value = textarea.value.substring(0, start) + text + textarea.value.substring(end);
+                        const nextPos = start + text.length;
+                        textarea.focus();
+                        textarea.selectionStart = nextPos;
+                        textarea.selectionEnd = nextPos;
+                }
+
+                function getRuleSnippet(type, outlet) {
+                        const target = `outlet_${outlet}`;
+
+                        const snippets = {
+                                temp:
+`if(temp > 30) {
+    ${target} = 1;
+} else {
+    ${target} = 0;
+}
+`,
+                                water:
+`if(water < 35) {
+    ${target} = 1;
+} else {
+    ${target} = 0;
+}
+`,
+                                light:
+`if(light < 20) {
+    ${target} = 1;
+} else {
+    ${target} = 0;
+}
+`,
+                                all_sensors:
+`if(temp > 30 && water < 40 && light < 30) {
+    ${target} = 1;
+} else {
+    ${target} = 0;
+}
+`,
+                                outlet_on:
+`if(${target} == 1) {
+    ${target} = 1;
+} else {
+    ${target} = 0;
+}
+`,
+                                blink_for:
+`if(${target} == 1) {
+    for(i=0; i<3; i++) {
+        ${target} = 0;
+        delay(500);
+        ${target} = 1;
+        delay(500);
+    }
+} else {
+    ${target} = 0;
+}
+`,
+                                blink_fn:
+`if(${target} == 1) {
+    blink(${target}, 3, 500);
+} else {
+    ${target} = 0;
+}
+`,
+                                delay: 'delay(300);\n'
+                        };
+
+                        return snippets[type] || '';
+                }
+
+                function insertRuleSnippet(type) {
+                        const editor = document.getElementById('modalOutletRule');
+                        if (!editor) return;
+
+                        if (type === 'clear') {
+                                editor.value = '';
+                                editor.focus();
+                                return;
+                        }
+
+                        const snippet = getRuleSnippet(type, currentEditingOutlet);
+                        if (!snippet) return;
+
+                        if (editor.value.trim().length === 0) {
+                                editor.value = snippet;
+                                editor.focus();
+                                editor.selectionStart = editor.value.length;
+                                editor.selectionEnd = editor.value.length;
+                                return;
+                        }
+
+                        const needsGap = !editor.value.endsWith('\n');
+                        insertTextAtCursor(editor, `${needsGap ? '\n' : ''}${snippet}`);
+                }
         
         // Mở modal chỉnh sửa
         function openEditModal(outlet) {
@@ -1436,7 +1646,7 @@
 
             document.getElementById('modalOutletRule').value = outletRules[outlet] || '';
             document.getElementById('modalRuleHint').textContent =
-                `Ví dụ: if(temp > 30) outlet_${outlet} = 1; else outlet_${outlet} = 0;`;
+                `Ví dụ outlet_${outlet}: if((temp > 30 && water < 40) || light < 25) { outlet_${outlet} = 1; } else { outlet_${outlet} = 0; }`;
             
             // Hiển thị modal
             document.getElementById('editModal').style.display = 'block';
