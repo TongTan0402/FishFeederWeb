@@ -1577,10 +1577,10 @@
                                 blink_for:
 `if(${target} == 1) {
     for(i=0; i<3; i++) {
+        delay(500);
         ${target} = 0;
         delay(500);
         ${target} = 1;
-        delay(500);
     }
 } else {
     ${target} = 0;
