@@ -1283,11 +1283,8 @@
                 scheduleDiv.innerHTML = `
                     <div class="modal-schedule-row">
                         <input type="checkbox" id="modal_s${i}_enable">
-                        <input type="time" id="modal_s${i}_time" value="00:00">
-                        <select id="modal_s${i}_action">
-                            <option value="true">BẬT</option>
-                            <option value="false">TẮT</option>
-                        </select>
+                        <input type="time" id="modal_s${i}_on_time" value="00:00" title="Giờ bật">
+                        <input type="time" id="modal_s${i}_off_time" value="00:00" title="Giờ tắt">
                         <span style="font-size: 12px; color: #666;">Lịch ${i+1}</span>
                     </div>
                 `;
@@ -1327,8 +1324,8 @@
             // Load lịch trình hiện tại
             for (let i = 0; i < 4; i++) {
                 const enabledEl = document.getElementById(`modal_s${i}_enable`);
-                const timeEl = document.getElementById(`modal_s${i}_time`);
-                const actionEl = document.getElementById(`modal_s${i}_action`);
+                const onTimeEl = document.getElementById(`modal_s${i}_on_time`);
+                const offTimeEl = document.getElementById(`modal_s${i}_off_time`);
                 
                 // Lấy dữ liệu từ localStorage (cache)
                 const scheduleKey = `outlet${outlet}_schedule${i}`;
@@ -1337,12 +1334,12 @@
                 if (savedSchedule) {
                     const schedule = JSON.parse(savedSchedule);
                     enabledEl.checked = schedule.enabled;
-                    timeEl.value = schedule.time;
-                    actionEl.value = String(schedule.action);
+                    onTimeEl.value = schedule.onTime || schedule.time || '00:00';
+                    offTimeEl.value = schedule.offTime || schedule.time || '00:00';
                 } else {
                     enabledEl.checked = false;
-                    timeEl.value = '00:00';
-                    actionEl.value = 'true';
+                    onTimeEl.value = '00:00';
+                    offTimeEl.value = '00:00';
                 }
             }
             
@@ -1407,19 +1404,22 @@
                     const savedSchedule = localStorage.getItem(scheduleKey);
                     if (savedSchedule) {
                         const s = JSON.parse(savedSchedule);
-                        const time = s.time.split(':');
+                        const onTime = (s.onTime || s.time || '00:00').split(':');
+                        const offTime = (s.offTime || s.time || '00:00').split(':');
                         schedules[`outlet${o}`].push({
                             enabled: s.enabled,
-                            hour: parseInt(time[0]),
-                            minute: parseInt(time[1]),
-                            action: s.action
+                            onHour: parseInt(onTime[0]),
+                            onMinute: parseInt(onTime[1]),
+                            offHour: parseInt(offTime[0]),
+                            offMinute: parseInt(offTime[1])
                         });
                     } else {
                         schedules[`outlet${o}`].push({
                             enabled: false,
-                            hour: 0,
-                            minute: 0,
-                            action: true
+                            onHour: 0,
+                            onMinute: 0,
+                            offHour: 0,
+                            offMinute: 0
                         });
                     }
                 }
@@ -1488,23 +1488,25 @@
             
             for (let i = 0; i < 4; i++) {
                 const enabled = document.getElementById(`modal_s${i}_enable`).checked;
-                const timeValue = document.getElementById(`modal_s${i}_time`).value;
-                const action = document.getElementById(`modal_s${i}_action`).value === 'true';
+                const onTimeValue = document.getElementById(`modal_s${i}_on_time`).value;
+                const offTimeValue = document.getElementById(`modal_s${i}_off_time`).value;
                 
                 // Cache vào localStorage
                 const scheduleKey = `outlet${outlet}_schedule${i}`;
                 localStorage.setItem(scheduleKey, JSON.stringify({
                     enabled: enabled,
-                    time: timeValue,
-                    action: action
+                    onTime: onTimeValue,
+                    offTime: offTimeValue
                 }));
                 
-                const time = timeValue.split(':');
+                const onTime = onTimeValue.split(':');
+                const offTime = offTimeValue.split(':');
                 schedules.push({
                     enabled: enabled,
-                    hour: parseInt(time[0]),
-                    minute: parseInt(time[1]),
-                    action: action
+                    onHour: parseInt(onTime[0]),
+                    onMinute: parseInt(onTime[1]),
+                    offHour: parseInt(offTime[0]),
+                    offMinute: parseInt(offTime[1])
                 });
             }
             
@@ -1863,14 +1865,20 @@
                 if (schedules && Array.isArray(schedules)) {
                     for (let i = 0; i < 4 && i < schedules.length; i++) {
                         const s = schedules[i];
-                        const timeValue = `${String(s.hour || 0).padStart(2,'0')}:${String(s.minute || 0).padStart(2,'0')}`;
+                        const onHour = s.onHour ?? s.hour ?? 0;
+                        const onMinute = s.onMinute ?? s.minute ?? 0;
+                        const offHour = s.offHour ?? onHour;
+                        const offMinute = s.offMinute ?? onMinute;
+
+                        const onTimeValue = `${String(onHour).padStart(2,'0')}:${String(onMinute).padStart(2,'0')}`;
+                        const offTimeValue = `${String(offHour).padStart(2,'0')}:${String(offMinute).padStart(2,'0')}`;
                         
                         // Lưu vào localStorage
                         const scheduleKey = `outlet${outlet}_schedule${i}`;
                         localStorage.setItem(scheduleKey, JSON.stringify({
                             enabled: s.enabled || false,
-                            time: timeValue,
-                            action: s.action
+                            onTime: onTimeValue,
+                            offTime: offTimeValue
                         }));
                     }
                     addLog(`✅ Đã load lịch trình outlet ${outlet}`, 'received');
