@@ -1099,17 +1099,24 @@
     
     <script>
         const MQTT_BROKER = 'broker.hivemq.com';
+        const MQTT_WS_PORT = '8000';
         const MQTT_WSS_PORT = '8884';
-        const MQTT_URL = `wss://${MQTT_BROKER}:${MQTT_WSS_PORT}/mqtt`;
         const MQTT_QOS = 1;
         const MQTT_CONNECT_TIMEOUT_MS = 5000;
-        const MQTT_RECONNECT_PERIOD_MS = 1000;
+        const MQTT_RECONNECT_INITIAL_DELAY_MS = 1000;
+        const MQTT_RECONNECT_MAX_DELAY_MS = 10000;
+        const MQTT_AUTH_RETRY_DELAY_MS = 3000;
         const OUTLET_ACK_TIMEOUT_MS = 3000;
         const FEED_ACK_TIMEOUT_MS = 25000;
         const FEED_BUTTON_DEFAULT_TEXT = 'CHO ĂN NGAY';
 
         let mqttClient = null;
         let isConnected = false;
+        let mqttReconnectTimer = null;
+        let mqttReconnectDelayMs = MQTT_RECONNECT_INITIAL_DELAY_MS;
+        let mqttEndpointIndex = 0;
+        let lastMqttErrorMessage = '';
+        let lastMqttErrorTime = 0;
         let currentEditingOutlet = 1; // Outlet đang được chỉnh sửa
         let outletNames = {
             1: "Outlet 1",
@@ -1152,6 +1159,11 @@
         
         // ===== GOOGLE SHEETS FUNCTIONS =====
         // ESP32 handles all logging - web only reads history
+
+        // Giữ tương thích với các chỗ gọi cũ, tránh lỗi runtime làm đứt luồng MQTT.
+        function logToGoogleSheets(eventType, detail, value) {
+            // No-op: logging đã được xử lý trên ESP32.
+        }
         
         // Đọc lịch sử từ Google Sheets
         async function fetchHistoryFromGoogleSheets() {
@@ -1828,6 +1840,107 @@
             }
         }
 
+        function getMqttUrls() {
+            const wsUrlWithPath = `ws://${MQTT_BROKER}:${MQTT_WS_PORT}/mqtt`;
+            const wsUrlNoPath = `ws://${MQTT_BROKER}:${MQTT_WS_PORT}`;
+            const wssUrlWithPath = `wss://${MQTT_BROKER}:${MQTT_WSS_PORT}/mqtt`;
+            const wssUrlNoPath = `wss://${MQTT_BROKER}:${MQTT_WSS_PORT}`;
+
+            // Trang chạy HTTPS không được phép dùng ws:// vì mixed content.
+            if (window.location.protocol === 'https:') {
+                return [wssUrlWithPath, wssUrlNoPath];
+            }
+
+            return [wsUrlWithPath, wsUrlNoPath, wssUrlWithPath, wssUrlNoPath];
+        }
+
+        function getCurrentMqttUrl() {
+            const urls = getMqttUrls();
+            if (urls.length === 0) return '';
+            return urls[mqttEndpointIndex % urls.length];
+        }
+
+        function rotateMqttEndpoint() {
+            const urls = getMqttUrls();
+            if (urls.length > 1) {
+                mqttEndpointIndex = (mqttEndpointIndex + 1) % urls.length;
+            }
+        }
+
+        function clearMqttReconnectTimer() {
+            if (mqttReconnectTimer) {
+                clearTimeout(mqttReconnectTimer);
+                mqttReconnectTimer = null;
+            }
+        }
+
+        function teardownMqttClient() {
+            if (!mqttClient) {
+                return;
+            }
+
+            try {
+                mqttClient.removeAllListeners();
+                mqttClient.end(true);
+            } catch (e) {
+                // noop
+            }
+
+            mqttClient = null;
+        }
+
+        function logMqttError(message) {
+            const now = Date.now();
+            if (message === lastMqttErrorMessage && (now - lastMqttErrorTime) < 2000) {
+                return;
+            }
+
+            lastMqttErrorMessage = message;
+            lastMqttErrorTime = now;
+            addLog(`❌ Lỗi MQTT: ${message}`, 'error');
+        }
+
+        function scheduleMqttReconnect(reason = 'mất kết nối', rotateEndpoint = false, forcedDelayMs = null) {
+            if (rotateEndpoint) {
+                rotateMqttEndpoint();
+            }
+
+            if (mqttReconnectTimer) {
+                return;
+            }
+
+            const waitMs = (typeof forcedDelayMs === 'number') ? forcedDelayMs : mqttReconnectDelayMs;
+
+            if (typeof forcedDelayMs !== 'number') {
+                mqttReconnectDelayMs = Math.min(mqttReconnectDelayMs * 2, MQTT_RECONNECT_MAX_DELAY_MS);
+            }
+
+            const target = getCurrentMqttUrl();
+            updateConnectionStatus(false, true);
+            addLog(`🔄 ${reason}. Thử lại sau ${(waitMs / 1000).toFixed(1)}s (${target})`, 'sent');
+
+            mqttReconnectTimer = setTimeout(() => {
+                mqttReconnectTimer = null;
+                connectMQTT();
+            }, waitMs);
+        }
+
+        function handleMqttDisconnected(reason = 'mất kết nối') {
+            const wasConnected = isConnected;
+
+            isConnected = false;
+            clearAllPendingOutletActions();
+            resetFeedPendingState();
+            enableControls(false);
+            teardownMqttClient();
+
+            if (wasConnected) {
+                addLog(`🔴 MQTT ${reason}`, 'error');
+            }
+
+            scheduleMqttReconnect(reason);
+        }
+
         function subscribeTopic(topic) {
             if (!mqttClient) return;
 
@@ -1847,96 +1960,70 @@
             }
 
             const clientId = 'WebClient_' + Math.random().toString(16).substr(2, 8);
+            const mqttUrl = getCurrentMqttUrl();
 
-            addLog(`🔌 Tự động kết nối đến ${MQTT_URL} (QoS${MQTT_QOS})...`, 'sent');
+            addLog(`🔌 Tự động kết nối đến ${mqttUrl} (QoS${MQTT_QOS})...`, 'sent');
             const options = {
                 clientId: clientId,
                 clean: true,
-                reconnectPeriod: MQTT_RECONNECT_PERIOD_MS,
+                reconnectPeriod: 0,
                 connectTimeout: MQTT_CONNECT_TIMEOUT_MS,
                 keepalive: 20,
                 resubscribe: true,
             };
 
-            mqttClient = mqtt.connect(MQTT_URL, options);
+            mqttClient = mqtt.connect(mqttUrl, options);
 
             mqttClient.on('connect', () => {
                 const firstConnect = !isConnected;
                 isConnected = true;
+                mqttReconnectDelayMs = MQTT_RECONNECT_INITIAL_DELAY_MS;
+                clearMqttReconnectTimer();
 
                 updateConnectionStatus(true);
                 addLog(firstConnect ? '✅ Đã kết nối MQTT thành công!' : '✅ MQTT đã kết nối lại!', 'received');
                 
-                [
-                    'fishfeeder/outlet1/status',
-                    'fishfeeder/outlet2/status',
-                    'fishfeeder/outlet3/status',
-                    'fishfeeder/outlet4/status',
-                    'fishfeeder/outlet1/control',
-                    'fishfeeder/outlet2/control',
-                    'fishfeeder/outlet3/control',
-                    'fishfeeder/outlet4/control',
-                    'fishfeeder/outlet1/schedule',
-                    'fishfeeder/outlet2/schedule',
-                    'fishfeeder/outlet3/schedule',
-                    'fishfeeder/outlet4/schedule',
-                    'fishfeeder/outlet1/name',
-                    'fishfeeder/outlet2/name',
-                    'fishfeeder/outlet3/name',
-                    'fishfeeder/outlet4/name',
-                    'fishfeeder/outlet1/rule',
-                    'fishfeeder/outlet2/rule',
-                    'fishfeeder/outlet3/rule',
-                    'fishfeeder/outlet4/rule',
-                    'fishfeeder/info',
-                    'fishfeeder/feed/ack',
-                    'fishfeeder/schedule'
-                ].forEach(subscribeTopic);
+                subscribeTopic('fishfeeder/#');
                 
                 enableControls(true);
             });
 
-            mqttClient.on('reconnect', () => {
-                if (isConnected) {
-                    isConnected = false;
-                    clearAllPendingOutletActions();
-                    resetFeedPendingState();
-                    enableControls(false);
-                }
-                updateConnectionStatus(false, true);
-                addLog('🔄 Đang thử kết nối lại MQTT...', 'sent');
-            });
-
             mqttClient.on('offline', () => {
-                if (isConnected) {
-                    addLog('🟡 MQTT offline', 'error');
-                }
-                isConnected = false;
-                clearAllPendingOutletActions();
-                resetFeedPendingState();
-                enableControls(false);
-                updateConnectionStatus(false, true);
+                handleMqttDisconnected('offline');
             });
             
             mqttClient.on('message', (topic, message) => {
                 const msg = message.toString();
                 addLog(`📩 ${topic}: ${msg.substring(0, 100)}${msg.length > 100 ? '...' : ''}`, 'received');
-                handleMQTTMessage(topic, msg);
+                try {
+                    handleMQTTMessage(topic, msg);
+                } catch (err) {
+                    addLog(`❌ Runtime xử lý MQTT (${topic}): ${err.message || err}`, 'error');
+                }
             });
             
             mqttClient.on('error', (err) => {
-                addLog(`❌ Lỗi MQTT: ${err.message}`, 'error');
+                const message = (err && err.message) ? err.message : String(err);
+                logMqttError(message);
+
+                if (/not authorized/i.test(message)) {
+                    isConnected = false;
+                    clearAllPendingOutletActions();
+                    resetFeedPendingState();
+                    enableControls(false);
+                    teardownMqttClient();
+                    scheduleMqttReconnect('Broker từ chối endpoint hiện tại', true, MQTT_AUTH_RETRY_DELAY_MS);
+                    return;
+                }
+
+                if (!isConnected) {
+                    teardownMqttClient();
+                    scheduleMqttReconnect('lỗi kết nối');
+                }
             });
             
             mqttClient.on('close', () => {
-                if (isConnected) {
-                    addLog('🔴 MQTT đóng kết nối', 'error');
-                }
-                isConnected = false;
-                clearAllPendingOutletActions();
-                resetFeedPendingState();
-                enableControls(false);
-                updateConnectionStatus(false, true);
+                handleMqttDisconnected('đóng kết nối');
             });
         }
 
@@ -1944,7 +2031,7 @@
         function updateConnectionStatus(connected, reconnecting = false) {
             const statusDiv = document.getElementById('connectionStatus');
             const brokerStatus = document.getElementById('brokerStatus');
-            const target = MQTT_URL;
+            const target = getCurrentMqttUrl();
             
             if (connected) {
                 statusDiv.className = 'connection-status connected';
@@ -2037,6 +2124,19 @@
         // Xử lý tin nhắn MQTT
         function handleMQTTMessage(topic, message) {
             const trimmedMessage = normalizeMqttPayload(message);
+
+            const outletStatusMatch = topic.match(/^fishfeeder\/outlet([1-4])\/status$/);
+            if (outletStatusMatch) {
+                updateOutletButton(parseInt(outletStatusMatch[1], 10), parseOnOffPayload(trimmedMessage));
+                return;
+            }
+
+            const outletControlMatch = topic.match(/^fishfeeder\/outlet([1-4])\/control$/);
+            if (outletControlMatch) {
+                // Fallback: nếu status bị trễ/mất, sync theo control.
+                updateOutletButton(parseInt(outletControlMatch[1], 10), parseOnOffPayload(trimmedMessage));
+                return;
+            }
 
             // ===== XỬ LÝ STATUS RIÊNG TỪNG OUTLET =====
             if (topic === 'fishfeeder/outlet1/status') {
@@ -2173,7 +2273,13 @@
                     }
                     
                     // Kiểm tra xem đây là ACK cho lệnh đang chờ hay lệnh cũ (offline)
-                    const isCurrentRequest = (pendingFeedId !== null && trimmedMessage === pendingFeedId);
+                    const isCurrentRequest = (
+                        pendingFeedId !== null && (
+                            trimmedMessage === pendingFeedId ||
+                            trimmedMessage.startsWith(pendingFeedId) ||
+                            pendingFeedId.startsWith(trimmedMessage)
+                        )
+                    );
                     
                     if (isCurrentRequest) {
                         addLog(`✅ Xác nhận đã cho ăn: ${trimmedMessage}`, 'received');
