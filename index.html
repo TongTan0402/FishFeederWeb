@@ -1099,8 +1099,12 @@
     
     <script>
         const MQTT_BROKER = 'broker.hivemq.com';
-        const MQTT_PORT = '8884';
-        const MQTT_RECONNECT_PERIOD_MS = 5000;
+        const MQTT_WSS_PORT = '8884';
+        const MQTT_URL = `wss://${MQTT_BROKER}:${MQTT_WSS_PORT}/mqtt`;
+        const MQTT_QOS = 1;
+        const MQTT_CONNECT_TIMEOUT_MS = 5000;
+        const MQTT_RECONNECT_PERIOD_MS = 1000;
+        const OUTLET_ACK_TIMEOUT_MS = 3000;
 
         let mqttClient = null;
         let isConnected = false;
@@ -1714,7 +1718,7 @@
             }
             
             // Gửi qua MQTT với retained flag
-            mqttClient.publish('fishfeeder/schedule', JSON.stringify(schedules), { retain: true });
+            mqttClient.publish('fishfeeder/schedule', JSON.stringify(schedules), { retain: true, qos: MQTT_QOS });
             addLog('📤 Lưu lịch cho ăn', 'sent');
             // ESP32 sẽ log khi nhận được schedule update
             
@@ -1739,7 +1743,7 @@
                 document.getElementById(`outlet${outlet}Title`).textContent = `⚡ ${newName}`;
                 
                 // Gửi tên qua MQTT vào topic riêng với retained flag
-                mqttClient.publish(`fishfeeder/outlet${outlet}/name`, newName, { retain: true });
+                mqttClient.publish(`fishfeeder/outlet${outlet}/name`, newName, { retain: true, qos: MQTT_QOS });
                 addLog(`📤 Cập nhật tên outlet ${outlet}: ${newName}`, 'sent');
                 // ESP32 sẽ log khi nhận được name update
             }
@@ -1773,7 +1777,7 @@
             
             // Gửi lịch trình vào topic riêng với retained flag
             const scheduleJSON = JSON.stringify({ schedules: schedules });
-            mqttClient.publish(`fishfeeder/outlet${outlet}/schedule`, scheduleJSON, { retain: true });
+            mqttClient.publish(`fishfeeder/outlet${outlet}/schedule`, scheduleJSON, { retain: true, qos: MQTT_QOS });
             addLog(`📤 Lưu lịch trình Outlet ${outlet}`, 'sent');
             // ESP32 sẽ log khi nhận được schedule update
 
@@ -1781,7 +1785,7 @@
             const ruleText = document.getElementById('modalOutletRule').value.trim();
             outletRules[outlet] = ruleText;
             localStorage.setItem(`outlet${outlet}_rule`, ruleText);
-            mqttClient.publish(`fishfeeder/outlet${outlet}/rule`, ruleText, { retain: true });
+            mqttClient.publish(`fishfeeder/outlet${outlet}/rule`, ruleText, { retain: true, qos: MQTT_QOS });
             addLog(`📤 Lưu rule Outlet ${outlet}`, 'sent');
             
             // Đóng modal
@@ -1821,6 +1825,18 @@
                 logContainer.removeChild(logContainer.firstChild);
             }
         }
+
+        function subscribeTopic(topic) {
+            if (!mqttClient) return;
+
+            mqttClient.subscribe(topic, { qos: MQTT_QOS }, (err) => {
+                if (err) {
+                    addLog(`❌ Subscribe lỗi ${topic}: ${err.message || err}`, 'error');
+                } else {
+                    addLog(`📥 Subscribed QoS${MQTT_QOS}: ${topic}`, 'received');
+                }
+            });
+        }
         
         // Kết nối MQTT
         function connectMQTT() {
@@ -1828,110 +1844,74 @@
                 return;
             }
 
-            const broker = MQTT_BROKER;
-            const port = MQTT_PORT;
             const clientId = 'WebClient_' + Math.random().toString(16).substr(2, 8);
-            const protocol = 'wss://';
-            const url = `${protocol}${broker}:${port}/mqtt`;
-            addLog(`🔌 Tự động kết nối đến ${url}...`, 'sent');
+
+            addLog(`🔌 Tự động kết nối đến ${MQTT_URL} (QoS${MQTT_QOS})...`, 'sent');
             const options = {
                 clientId: clientId,
                 clean: true,
                 reconnectPeriod: MQTT_RECONNECT_PERIOD_MS,
-                connectTimeout: 10000,
+                connectTimeout: MQTT_CONNECT_TIMEOUT_MS,
+                keepalive: 20,
+                resubscribe: true,
             };
 
-            mqttClient = mqtt.connect(url, options);
+            mqttClient = mqtt.connect(MQTT_URL, options);
 
             mqttClient.on('connect', () => {
+                const firstConnect = !isConnected;
                 isConnected = true;
-                updateConnectionStatus(true);
-                addLog('✅ Đã kết nối MQTT thành công!', 'received');
-                
-                // Subscribe các topic STATUS riêng để nhận trạng thái
-                mqttClient.subscribe('fishfeeder/outlet1/status', (err) => {
-                    if (!err) addLog('📥 Subscribed: outlet1/status', 'received');
-                });
-                mqttClient.subscribe('fishfeeder/outlet2/status', (err) => {
-                    if (!err) addLog('📥 Subscribed: outlet2/status', 'received');
-                });
-                mqttClient.subscribe('fishfeeder/outlet3/status', (err) => {
-                    if (!err) addLog('📥 Subscribed: outlet3/status', 'received');
-                });
-                mqttClient.subscribe('fishfeeder/outlet4/status', (err) => {
-                    if (!err) addLog('📥 Subscribed: outlet4/status', 'received');
-                });
-                
-                // Subscribe các topic SCHEDULE riêng
-                mqttClient.subscribe('fishfeeder/outlet1/schedule', (err) => {
-                    if (!err) addLog('📥 Subscribed: outlet1/schedule', 'received');
-                });
-                mqttClient.subscribe('fishfeeder/outlet2/schedule', (err) => {
-                    if (!err) addLog('📥 Subscribed: outlet2/schedule', 'received');
-                });
-                mqttClient.subscribe('fishfeeder/outlet3/schedule', (err) => {
-                    if (!err) addLog('📥 Subscribed: outlet3/schedule', 'received');
-                });
-                mqttClient.subscribe('fishfeeder/outlet4/schedule', (err) => {
-                    if (!err) addLog('📥 Subscribed: outlet4/schedule', 'received');
-                });
-                
-                // Subscribe các topic NAME riêng
-                mqttClient.subscribe('fishfeeder/outlet1/name', (err) => {
-                    if (!err) addLog('📥 Subscribed: outlet1/name', 'received');
-                });
-                mqttClient.subscribe('fishfeeder/outlet2/name', (err) => {
-                    if (!err) addLog('📥 Subscribed: outlet2/name', 'received');
-                });
-                mqttClient.subscribe('fishfeeder/outlet3/name', (err) => {
-                    if (!err) addLog('📥 Subscribed: outlet3/name', 'received');
-                });
-                mqttClient.subscribe('fishfeeder/outlet4/name', (err) => {
-                    if (!err) addLog('📥 Subscribed: outlet4/name', 'received');
-                });
 
-                // Subscribe các topic RULE riêng
-                mqttClient.subscribe('fishfeeder/outlet1/rule', (err) => {
-                    if (!err) addLog('📥 Subscribed: outlet1/rule', 'received');
-                });
-                mqttClient.subscribe('fishfeeder/outlet2/rule', (err) => {
-                    if (!err) addLog('📥 Subscribed: outlet2/rule', 'received');
-                });
-                mqttClient.subscribe('fishfeeder/outlet3/rule', (err) => {
-                    if (!err) addLog('📥 Subscribed: outlet3/rule', 'received');
-                });
-                mqttClient.subscribe('fishfeeder/outlet4/rule', (err) => {
-                    if (!err) addLog('📥 Subscribed: outlet4/rule', 'received');
-                });
+                updateConnectionStatus(true);
+                addLog(firstConnect ? '✅ Đã kết nối MQTT thành công!' : '✅ MQTT đã kết nối lại!', 'received');
                 
-                // Subscribe topic thông tin thiết bị
-                mqttClient.subscribe('fishfeeder/info', (err) => {
-                    if (!err) addLog('📥 Subscribed: fishfeeder/info', 'received');
-                });
-                
-                // Subscribe topic ACK cho ăn
-                mqttClient.subscribe('fishfeeder/feed/ack', (err) => {
-                    if (!err) addLog('📥 Subscribed: fishfeeder/feed/ack', 'received');
-                });
-                
-                // Subscribe topic lịch cho ăn + outlets
-                mqttClient.subscribe('fishfeeder/schedule', (err) => {
-                    if (!err) addLog('📥 Subscribed: fishfeeder/schedule', 'received');
-                });
+                [
+                    'fishfeeder/outlet1/status',
+                    'fishfeeder/outlet2/status',
+                    'fishfeeder/outlet3/status',
+                    'fishfeeder/outlet4/status',
+                    'fishfeeder/outlet1/control',
+                    'fishfeeder/outlet2/control',
+                    'fishfeeder/outlet3/control',
+                    'fishfeeder/outlet4/control',
+                    'fishfeeder/outlet1/schedule',
+                    'fishfeeder/outlet2/schedule',
+                    'fishfeeder/outlet3/schedule',
+                    'fishfeeder/outlet4/schedule',
+                    'fishfeeder/outlet1/name',
+                    'fishfeeder/outlet2/name',
+                    'fishfeeder/outlet3/name',
+                    'fishfeeder/outlet4/name',
+                    'fishfeeder/outlet1/rule',
+                    'fishfeeder/outlet2/rule',
+                    'fishfeeder/outlet3/rule',
+                    'fishfeeder/outlet4/rule',
+                    'fishfeeder/info',
+                    'fishfeeder/feed/ack',
+                    'fishfeeder/schedule'
+                ].forEach(subscribeTopic);
                 
                 enableControls(true);
             });
 
             mqttClient.on('reconnect', () => {
-                isConnected = false;
+                if (isConnected) {
+                    isConnected = false;
+                    clearAllPendingOutletActions();
+                    enableControls(false);
+                }
                 updateConnectionStatus(false, true);
-                addLog('🔄 Mất kết nối, đang tự động thử lại...', 'sent');
+                addLog('🔄 Đang thử kết nối lại MQTT...', 'sent');
             });
 
             mqttClient.on('offline', () => {
+                if (isConnected) {
+                    addLog('🟡 MQTT offline', 'error');
+                }
                 isConnected = false;
+                clearAllPendingOutletActions();
+                enableControls(false);
                 updateConnectionStatus(false, true);
-                addLog('📴 MQTT offline, đang chờ kết nối lại...', 'error');
             });
             
             mqttClient.on('message', (topic, message) => {
@@ -1941,22 +1921,17 @@
             });
             
             mqttClient.on('error', (err) => {
-                addLog(`❌ Lỗi: ${err.message}`, 'error');
-                
-                // Kiểm tra lỗi Mixed Content
-                if (window.location.protocol === 'https:' && err.message.includes('WebSocket')) {
-                    addLog(`⚠️ Lỗi bảo mật: Trang HTTPS không thể kết nối WS (không mã hóa)`, 'error');
-                    addLog(`💡 Giải pháp: Đổi broker sang WSS hoặc dùng trang HTTP local`, 'error');
-                    showToast('⚠️ Lỗi Mixed Content: Cần broker hỗ trợ WSS (port 8883/8884)', 'error', 5000);
-                }
+                addLog(`❌ Lỗi MQTT: ${err.message}`, 'error');
             });
             
             mqttClient.on('close', () => {
+                if (isConnected) {
+                    addLog('🔴 MQTT đóng kết nối', 'error');
+                }
                 isConnected = false;
-                updateConnectionStatus(false, true);
-                addLog('🔴 Kết nối MQTT đã đóng, sẽ tự động thử lại...', 'error');
                 clearAllPendingOutletActions();
                 enableControls(false);
+                updateConnectionStatus(false, true);
             });
         }
 
@@ -1964,19 +1939,20 @@
         function updateConnectionStatus(connected, reconnecting = false) {
             const statusDiv = document.getElementById('connectionStatus');
             const brokerStatus = document.getElementById('brokerStatus');
+            const target = MQTT_URL;
             
             if (connected) {
                 statusDiv.className = 'connection-status connected';
                 statusDiv.innerHTML = '🟢 Đã kết nối MQTT - Sẵn sàng điều khiển';
-                brokerStatus.textContent = `${MQTT_BROKER}:${MQTT_PORT} (Đã kết nối)`;
+                brokerStatus.textContent = `${target} (Đã kết nối)`;
             } else if (reconnecting) {
                 statusDiv.className = 'connection-status disconnected';
                 statusDiv.innerHTML = '🟡 Mất kết nối MQTT - Đang tự động thử lại...';
-                brokerStatus.textContent = `${MQTT_BROKER}:${MQTT_PORT} (Đang thử lại)`;
+                brokerStatus.textContent = `${target} (Đang thử lại)`;
             } else {
                 statusDiv.className = 'connection-status disconnected';
                 statusDiv.innerHTML = '🔴 Chưa kết nối MQTT';
-                brokerStatus.textContent = `${MQTT_BROKER}:${MQTT_PORT} (Chưa kết nối)`;
+                brokerStatus.textContent = `${target} (Chưa kết nối)`;
             }
         }
         
@@ -2006,10 +1982,12 @@
             if (!btn) return;
 
             btn.className = `outlet-btn ${state ? 'on' : 'off'}${pending ? ' pending' : ''}`;
-            btn.textContent = pending
-                ? `${state ? 'BẬT' : 'TẮT'} ⏳`
-                : (state ? 'BẬT' : 'TẮT');
-            btn.disabled = pending;
+            btn.textContent = state ? 'BẬT' : 'TẮT';
+
+            // Giữ nút phản hồi click, chỉ disable khi mất kết nối MQTT.
+            if (isConnected) {
+                btn.disabled = false;
+            }
         }
         
         // Xử lý tin nhắn MQTT
@@ -2022,6 +2000,16 @@
             } else if (topic === 'fishfeeder/outlet3/status') {
                 updateOutletButton(3, message === 'ON');
             } else if (topic === 'fishfeeder/outlet4/status') {
+                updateOutletButton(4, message === 'ON');
+            }
+            // Fallback: nếu status bị trễ/mất, sync theo control retained.
+            else if (topic === 'fishfeeder/outlet1/control') {
+                updateOutletButton(1, message === 'ON');
+            } else if (topic === 'fishfeeder/outlet2/control') {
+                updateOutletButton(2, message === 'ON');
+            } else if (topic === 'fishfeeder/outlet3/control') {
+                updateOutletButton(3, message === 'ON');
+            } else if (topic === 'fishfeeder/outlet4/control') {
                 updateOutletButton(4, message === 'ON');
             }
             
@@ -2226,23 +2214,7 @@
             const currentState = btn.classList.contains('on');
             const newState = !currentState;
 
-            // Hiển thị ngay trạng thái mới để không có cảm giác trễ.
-            renderOutletButtonState(outlet, newState, true);
-            
-            // GỬI lệnh vào topic control riêng
-            // Chờ ESP32 phản hồi qua topic fishfeeder/outletX/status
-            mqttClient.publish(`fishfeeder/outlet${outlet}/control`, newState ? 'ON' : 'OFF');
-            addLog(`📤 Gửi: outlet${outlet}/control = ${newState ? 'ON' : 'OFF'}`, 'sent');
-            
-            // Ghi log lên Google Sheets
-            const outletName = outletNames[outlet] || `Outlet ${outlet}`;
-            logToGoogleSheets(
-                newState ? 'Bật ổ cắm' : 'Tắt ổ cắm',
-                outletName,
-                newState ? 'ON' : 'OFF'
-            );
-
-            const timeoutId = setTimeout(() => {
+            const pendingTimeoutId = setTimeout(() => {
                 const pending = pendingOutletActions[outlet];
                 if (!pending) {
                     return;
@@ -2252,13 +2224,44 @@
                 renderOutletButtonState(outlet, pending.previousState, false);
                 addLog(`⚠️ Outlet ${outlet} timeout ACK trạng thái`, 'error');
                 showToast('⚠️ Không nhận được phản hồi trạng thái từ ESP32', 'warning');
-            }, 2500);
+            }, OUTLET_ACK_TIMEOUT_MS);
 
+            // Đặt pending TRƯỚC khi publish để tránh race khi ACK về quá nhanh.
             pendingOutletActions[outlet] = {
                 previousState: currentState,
                 expectedState: newState,
-                timeoutId: timeoutId
+                timeoutId: pendingTimeoutId
             };
+
+            // Hiển thị ngay trạng thái mới để không có cảm giác trễ.
+            renderOutletButtonState(outlet, newState, true);
+            
+            // GỬI lệnh vào topic control riêng
+            // Chờ ESP32 phản hồi qua topic fishfeeder/outletX/status
+            mqttClient.publish(
+                `fishfeeder/outlet${outlet}/control`,
+                newState ? 'ON' : 'OFF',
+                { qos: MQTT_QOS, retain: false },
+                (err) => {
+                    if (!err) {
+                        return;
+                    }
+
+                    clearPendingOutletAction(outlet);
+                    renderOutletButtonState(outlet, currentState, false);
+                    addLog(`❌ Lỗi publish outlet${outlet}/control: ${err.message || err}`, 'error');
+                    showToast('❌ Gửi lệnh thất bại. Vui lòng thử lại.', 'error');
+                }
+            );
+            addLog(`📤 Gửi: outlet${outlet}/control = ${newState ? 'ON' : 'OFF'}`, 'sent');
+            
+            // Ghi log lên Google Sheets
+            const outletName = outletNames[outlet] || `Outlet ${outlet}`;
+            logToGoogleSheets(
+                newState ? 'Bật ổ cắm' : 'Tắt ổ cắm',
+                outletName,
+                newState ? 'ON' : 'OFF'
+            );
         }
         
         // Cho cá ăn - với ACK đảm bảo thực hiện
@@ -2287,7 +2290,24 @@
             pendingFeedId = feedId;
             
             // Gửi lệnh với retained flag = true (để ESP nhận được khi kết nối lại)
-            mqttClient.publish('fishfeeder/feed', feedId, { retain: true });
+            mqttClient.publish('fishfeeder/feed', feedId, { retain: true, qos: MQTT_QOS }, (err) => {
+                if (!err) {
+                    return;
+                }
+
+                if (feedTimeout) {
+                    clearTimeout(feedTimeout);
+                    feedTimeout = null;
+                }
+
+                pendingFeedId = null;
+                const feedBtn = document.getElementById('feedBtn');
+                feedBtn.disabled = false;
+                feedBtn.textContent = 'CHO ĂN NGAY';
+
+                addLog(`❌ Lỗi publish fishfeeder/feed: ${err.message || err}`, 'error');
+                showToast('❌ Gửi lệnh cho ăn thất bại. Vui lòng thử lại.', 'error');
+            });
             addLog(`📤 Gửi lệnh cho ăn: ${feedId}`, 'sent');
             
             // Cập nhật UI - đang chờ
