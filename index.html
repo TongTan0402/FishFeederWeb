@@ -51,63 +51,6 @@
             color: #721c24;
         }
         
-        .mqtt-config {
-            background: #e3f2fd;
-            padding: 20px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-        }
-        
-        .mqtt-config h3 {
-            margin-bottom: 15px;
-            color: #333;
-        }
-        
-        .config-row {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 15px;
-            margin-bottom: 15px;
-        }
-        
-        .config-row input {
-            padding: 10px;
-            border: 2px solid #ddd;
-            border-radius: 5px;
-            font-size: 14px;
-        }
-        
-        .connect-btn {
-            width: 100%;
-            padding: 12px;
-            background: #667eea;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.15s ease;
-            position: relative;
-            box-shadow: 0 4px 0 #5568d3, 0 5px 10px rgba(0,0,0,0.2);
-        }
-        
-        .connect-btn:hover {
-            box-shadow: 0 5px 0 #5568d3, 0 7px 15px rgba(0,0,0,0.25);
-            transform: translateY(-1px);
-        }
-        
-        .connect-btn:active {
-            box-shadow: 0 1px 0 #5568d3, 0 2px 5px rgba(0,0,0,0.2);
-            transform: translateY(3px);
-        }
-        
-        .connect-btn:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-            box-shadow: 0 2px 0 #aaa;
-        }
-        
         .grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
@@ -933,19 +876,10 @@
 <body>
     <div class="container">
         <h1>🐠 Hệ Thống Bể Cá IoT v2.0 🐠</h1>
-        
-        <!-- Cấu hình MQTT -->
-        <div class="mqtt-config">
-            <h3>⚙️ Cấu Hình MQTT</h3>
-            <div class="config-row">
-                <input type="text" id="mqttBroker" placeholder="MQTT Broker (vd: test.mosquitto.org)" value="broker.hivemq.com" readonly>
-                <input type="number" id="mqttPort" placeholder="WebSocket Port (vd: 8081)" value="8884" readonly>
-            </div>
-            <button class="connect-btn" id="connectBtn" onclick="toggleConnection()">Kết Nối MQTT</button>
-        </div>
+
         <!-- Trạng thái kết nối -->
         <div class="connection-status disconnected" id="connectionStatus">
-            🔴 Chưa kết nối - Vui lòng kết nối MQTT
+            🟡 Đang kết nối MQTT...
         </div>
 
         <!-- Cảm biến thời gian thực -->
@@ -1164,6 +1098,10 @@
     <script src="https://unpkg.com/mqtt@4.3.7/dist/mqtt.min.js"></script>
     
     <script>
+        const MQTT_BROKER = 'broker.hivemq.com';
+        const MQTT_PORT = '8884';
+        const MQTT_RECONNECT_PERIOD_MS = 5000;
+
         let mqttClient = null;
         let isConnected = false;
         let currentEditingOutlet = 1; // Outlet đang được chỉnh sửa
@@ -1884,42 +1822,27 @@
             }
         }
         
-        // Kết nối/Ngắt kết nối MQTT
-        function toggleConnection() {
-            if (isConnected) {
-                disconnectMQTT();
-            } else {
-                connectMQTT();
-            }
-        }
-        
         // Kết nối MQTT
         function connectMQTT() {
-            const broker = document.getElementById('mqttBroker').value;
-            let port = document.getElementById('mqttPort').value;
-            const clientId = 'WebClient_' + Math.random().toString(16).substr(2, 8);
-            // Username và password đã bị ẩn hoàn toàn
-            // Tự động chọn ws:// hoặc wss:// dựa trên trang hiện tại
-            let protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-            // Nếu dùng HTTPS và port là 8081 (WS thường), tự động đổi sang port WSS
-            if (window.location.protocol === 'https:' && port === '8081') {
-                if (broker.includes('hivemq')) {
-                    port = '8884'; // HiveMQ WSS port
-                    addLog('ℹ️ Tự động chuyển sang port WSS: 8884', 'sent');
-                } else if (broker.includes('emqx')) {
-                    port = '8084'; // EMQX WSS port
-                    addLog('ℹ️ Tự động chuyển sang port WSS: 8084', 'sent');
-                }
+            if (mqttClient) {
+                return;
             }
+
+            const broker = MQTT_BROKER;
+            const port = MQTT_PORT;
+            const clientId = 'WebClient_' + Math.random().toString(16).substr(2, 8);
+            const protocol = 'wss://';
             const url = `${protocol}${broker}:${port}/mqtt`;
-            addLog(`Đang kết nối đến ${url}...`, 'sent');
+            addLog(`🔌 Tự động kết nối đến ${url}...`, 'sent');
             const options = {
                 clientId: clientId,
                 clean: true,
-                reconnectPeriod: 5000,
+                reconnectPeriod: MQTT_RECONNECT_PERIOD_MS,
+                connectTimeout: 10000,
             };
-            // Không truyền username/password
+
             mqttClient = mqtt.connect(url, options);
+
             mqttClient.on('connect', () => {
                 isConnected = true;
                 updateConnectionStatus(true);
@@ -1998,6 +1921,18 @@
                 
                 enableControls(true);
             });
+
+            mqttClient.on('reconnect', () => {
+                isConnected = false;
+                updateConnectionStatus(false, true);
+                addLog('🔄 Mất kết nối, đang tự động thử lại...', 'sent');
+            });
+
+            mqttClient.on('offline', () => {
+                isConnected = false;
+                updateConnectionStatus(false, true);
+                addLog('📴 MQTT offline, đang chờ kết nối lại...', 'error');
+            });
             
             mqttClient.on('message', (topic, message) => {
                 const msg = message.toString();
@@ -2018,39 +1953,30 @@
             
             mqttClient.on('close', () => {
                 isConnected = false;
-                updateConnectionStatus(false);
-                addLog('🔴 Đã ngắt kết nối MQTT', 'error');
+                updateConnectionStatus(false, true);
+                addLog('🔴 Kết nối MQTT đã đóng, sẽ tự động thử lại...', 'error');
                 clearAllPendingOutletActions();
                 enableControls(false);
             });
         }
-        
-        // Ngắt kết nối MQTT
-        function disconnectMQTT() {
-            if (mqttClient) {
-                mqttClient.end();
-                mqttClient = null;
-            }
-            clearAllPendingOutletActions();
-        }
-        
+
         // Cập nhật trạng thái kết nối
-        function updateConnectionStatus(connected) {
+        function updateConnectionStatus(connected, reconnecting = false) {
             const statusDiv = document.getElementById('connectionStatus');
-            const connectBtn = document.getElementById('connectBtn');
             const brokerStatus = document.getElementById('brokerStatus');
             
             if (connected) {
                 statusDiv.className = 'connection-status connected';
                 statusDiv.innerHTML = '🟢 Đã kết nối MQTT - Sẵn sàng điều khiển';
-                connectBtn.textContent = 'Ngắt Kết Nối';
-                const broker = document.getElementById('mqttBroker').value;
-                brokerStatus.textContent = `${broker} (Đã kết nối)`;
+                brokerStatus.textContent = `${MQTT_BROKER}:${MQTT_PORT} (Đã kết nối)`;
+            } else if (reconnecting) {
+                statusDiv.className = 'connection-status disconnected';
+                statusDiv.innerHTML = '🟡 Mất kết nối MQTT - Đang tự động thử lại...';
+                brokerStatus.textContent = `${MQTT_BROKER}:${MQTT_PORT} (Đang thử lại)`;
             } else {
                 statusDiv.className = 'connection-status disconnected';
-                statusDiv.innerHTML = '🔴 Chưa kết nối - Vui lòng kết nối MQTT';
-                connectBtn.textContent = 'Kết Nối MQTT';
-                brokerStatus.textContent = 'Chưa kết nối';
+                statusDiv.innerHTML = '🔴 Chưa kết nối MQTT';
+                brokerStatus.textContent = `${MQTT_BROKER}:${MQTT_PORT} (Chưa kết nối)`;
             }
         }
         
@@ -2392,13 +2318,6 @@
             
             // Tự động kết nối MQTT khi mở web
             connectMQTT();
-        });
-        
-        // Lưu cấu hình khi thay đổi
-        ['mqttBroker', 'mqttPort'].forEach(id => {
-            document.getElementById(id).addEventListener('change', (e) => {
-                localStorage.setItem(id, e.target.value);
-            });
         });
     </script>
 </body>
