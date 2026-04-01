@@ -1105,6 +1105,8 @@
         const MQTT_CONNECT_TIMEOUT_MS = 5000;
         const MQTT_RECONNECT_PERIOD_MS = 1000;
         const OUTLET_ACK_TIMEOUT_MS = 3000;
+        const FEED_ACK_TIMEOUT_MS = 25000;
+        const FEED_BUTTON_DEFAULT_TEXT = 'CHO ĂN NGAY';
 
         let mqttClient = null;
         let isConnected = false;
@@ -1898,6 +1900,7 @@
                 if (isConnected) {
                     isConnected = false;
                     clearAllPendingOutletActions();
+                    resetFeedPendingState();
                     enableControls(false);
                 }
                 updateConnectionStatus(false, true);
@@ -1910,6 +1913,7 @@
                 }
                 isConnected = false;
                 clearAllPendingOutletActions();
+                resetFeedPendingState();
                 enableControls(false);
                 updateConnectionStatus(false, true);
             });
@@ -1930,6 +1934,7 @@
                 }
                 isConnected = false;
                 clearAllPendingOutletActions();
+                resetFeedPendingState();
                 enableControls(false);
                 updateConnectionStatus(false, true);
             });
@@ -1977,12 +1982,51 @@
             [1, 2, 3, 4].forEach((outlet) => clearPendingOutletAction(outlet));
         }
 
+        function normalizeMqttPayload(value) {
+            return String(value ?? '').trim();
+        }
+
+        function parseOnOffPayload(value) {
+            const normalized = normalizeMqttPayload(value).toUpperCase();
+            return normalized === 'ON' || normalized === '1' || normalized === 'TRUE';
+        }
+
+        function resetFeedPendingState() {
+            if (feedTimeout) {
+                clearTimeout(feedTimeout);
+                feedTimeout = null;
+            }
+
+            pendingFeedId = null;
+
+            const feedBtn = document.getElementById('feedBtn');
+            if (feedBtn) {
+                feedBtn.textContent = FEED_BUTTON_DEFAULT_TEXT;
+                feedBtn.disabled = !isConnected;
+            }
+        }
+
+        function createFeedCommandId() {
+            const now = new Date();
+            const dd = String(now.getDate()).padStart(2, '0');
+            const MM = String(now.getMonth() + 1).padStart(2, '0');
+            const yy = String(now.getFullYear()).slice(-2);
+            const HH = String(now.getHours()).padStart(2, '0');
+            const mm = String(now.getMinutes()).padStart(2, '0');
+            const ss = String(now.getSeconds()).padStart(2, '0');
+            const ms = String(now.getMilliseconds()).padStart(3, '0');
+            const nonce = String(Math.floor(Math.random() * 1000)).padStart(3, '0');
+
+            return `FEED_${dd}${MM}${yy}${HH}${mm}${ss}_${ms}${nonce}`;
+        }
+
         function renderOutletButtonState(outlet, state, pending = false) {
             const btn = document.getElementById(`outlet${outlet}Btn`);
             if (!btn) return;
 
             btn.className = `outlet-btn ${state ? 'on' : 'off'}${pending ? ' pending' : ''}`;
-            btn.textContent = state ? 'BẬT' : 'TẮT';
+            const label = state ? 'BẬT' : 'TẮT';
+            btn.textContent = pending ? `⏳ ${label}` : label;
 
             // Giữ nút phản hồi click, chỉ disable khi mất kết nối MQTT.
             if (isConnected) {
@@ -1992,25 +2036,27 @@
         
         // Xử lý tin nhắn MQTT
         function handleMQTTMessage(topic, message) {
+            const trimmedMessage = normalizeMqttPayload(message);
+
             // ===== XỬ LÝ STATUS RIÊNG TỪNG OUTLET =====
             if (topic === 'fishfeeder/outlet1/status') {
-                updateOutletButton(1, message === 'ON');
+                updateOutletButton(1, parseOnOffPayload(trimmedMessage));
             } else if (topic === 'fishfeeder/outlet2/status') {
-                updateOutletButton(2, message === 'ON');
+                updateOutletButton(2, parseOnOffPayload(trimmedMessage));
             } else if (topic === 'fishfeeder/outlet3/status') {
-                updateOutletButton(3, message === 'ON');
+                updateOutletButton(3, parseOnOffPayload(trimmedMessage));
             } else if (topic === 'fishfeeder/outlet4/status') {
-                updateOutletButton(4, message === 'ON');
+                updateOutletButton(4, parseOnOffPayload(trimmedMessage));
             }
             // Fallback: nếu status bị trễ/mất, sync theo control retained.
             else if (topic === 'fishfeeder/outlet1/control') {
-                updateOutletButton(1, message === 'ON');
+                updateOutletButton(1, parseOnOffPayload(trimmedMessage));
             } else if (topic === 'fishfeeder/outlet2/control') {
-                updateOutletButton(2, message === 'ON');
+                updateOutletButton(2, parseOnOffPayload(trimmedMessage));
             } else if (topic === 'fishfeeder/outlet3/control') {
-                updateOutletButton(3, message === 'ON');
+                updateOutletButton(3, parseOnOffPayload(trimmedMessage));
             } else if (topic === 'fishfeeder/outlet4/control') {
-                updateOutletButton(4, message === 'ON');
+                updateOutletButton(4, parseOnOffPayload(trimmedMessage));
             }
             
             // ===== XỬ LÝ SCHEDULE RIÊNG TỪNG OUTLET =====
@@ -2102,19 +2148,21 @@
             // ===== XỬ LÝ ACK CHO ĂN =====
             else if (topic === 'fishfeeder/feed/ack') {
                 // Nhận xác nhận đã cho ăn từ ESP (có thể là ACK cho lệnh đang chờ hoặc lệnh cũ khi offline)
-                if (message && message.startsWith('FEED_')) {
+                if (trimmedMessage && trimmedMessage.startsWith('FEED_')) {
                     // Parse thời gian từ feedId (format: FEED_ddMMyyHHmmss)
-                    const feedIdPart = message.substring(5); // bỏ "FEED_"
+                    const feedIdPart = trimmedMessage.substring(5); // bỏ "FEED_"
                     let lastFeedStr;
-                    
-                    if (feedIdPart.length === 12) {
-                        // Parse ddMMyyHHmmss
-                        const dd = feedIdPart.substring(0, 2);
-                        const MM = feedIdPart.substring(2, 4);
-                        const yy = feedIdPart.substring(4, 6);
-                        const HH = feedIdPart.substring(6, 8);
-                        const mm = feedIdPart.substring(8, 10);
-                        const ss = feedIdPart.substring(10, 12);
+
+                    const match = feedIdPart.match(/^(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/);
+
+                    if (match) {
+                        // Parse ddMMyyHHmmss (chấp nhận cả format có hậu tố _msnonce)
+                        const dd = match[1];
+                        const MM = match[2];
+                        const yy = match[3];
+                        const HH = match[4];
+                        const mm = match[5];
+                        const ss = match[6];
                         lastFeedStr = `${dd}/${MM}/20${yy} ${HH}:${mm}:${ss}`;
                     } else {
                         // Fallback: dùng thời gian hiện tại
@@ -2125,26 +2173,15 @@
                     }
                     
                     // Kiểm tra xem đây là ACK cho lệnh đang chờ hay lệnh cũ (offline)
-                    const isCurrentRequest = (message === pendingFeedId);
+                    const isCurrentRequest = (pendingFeedId !== null && trimmedMessage === pendingFeedId);
                     
                     if (isCurrentRequest) {
-                        addLog(`✅ Xác nhận đã cho ăn: ${message}`, 'received');
+                        addLog(`✅ Xác nhận đã cho ăn: ${trimmedMessage}`, 'received');
                         showToast('✅ Cá đã được cho ăn thành công!', 'success');
-                        
-                        // Clear timeout
-                        if (feedTimeout) {
-                            clearTimeout(feedTimeout);
-                            feedTimeout = null;
-                        }
-                        
-                        // Reset trạng thái chờ
-                        pendingFeedId = null;
-                        const feedBtn = document.getElementById('feedBtn');
-                        feedBtn.disabled = false;
-                        feedBtn.textContent = 'CHO ĂN NGAY';
+                        resetFeedPendingState();
                     } else {
                         // ACK cho lệnh cũ (ESP đã cho ăn khi offline và vừa kết nối lại)
-                        addLog(`📩 ACK cho ăn (từ lúc offline): ${message}`, 'received');
+                        addLog(`📩 ACK cho ăn (không khớp request hiện tại): ${trimmedMessage}`, 'received');
                         showToast(`🐠 ESP đã cho ăn lúc ${lastFeedStr}`, 'info', 4000);
                     }
                     
@@ -2277,16 +2314,8 @@
                 return;
             }
             
-            // Tạo ID duy nhất cho lệnh (ddMMyyHHmmss)
-            // Ví dụ: 310126110601 = 31/01/26 11:06:01
-            const now = new Date();
-            const dd = String(now.getDate()).padStart(2, '0');
-            const MM = String(now.getMonth() + 1).padStart(2, '0');
-            const yy = String(now.getFullYear()).slice(-2);
-            const HH = String(now.getHours()).padStart(2, '0');
-            const mm = String(now.getMinutes()).padStart(2, '0');
-            const ss = String(now.getSeconds()).padStart(2, '0');
-            const feedId = `FEED_${dd}${MM}${yy}${HH}${mm}${ss}`;
+            // Tạo ID duy nhất theo mili-giây + nonce để không bao giờ trùng khi bấm nhanh.
+            const feedId = createFeedCommandId();
             pendingFeedId = feedId;
             
             // Gửi lệnh với retained flag = true (để ESP nhận được khi kết nối lại)
@@ -2300,10 +2329,7 @@
                     feedTimeout = null;
                 }
 
-                pendingFeedId = null;
-                const feedBtn = document.getElementById('feedBtn');
-                feedBtn.disabled = false;
-                feedBtn.textContent = 'CHO ĂN NGAY';
+                resetFeedPendingState();
 
                 addLog(`❌ Lỗi publish fishfeeder/feed: ${err.message || err}`, 'error');
                 showToast('❌ Gửi lệnh cho ăn thất bại. Vui lòng thử lại.', 'error');
@@ -2321,14 +2347,10 @@
             feedTimeout = setTimeout(() => {
                 if (pendingFeedId === feedId) {
                     addLog(`⚠️ Timeout - không nhận được xác nhận`, 'error');
-                    showToast('⚠️ Không nhận được xác nhận từ ESP32. Lệnh vẫn được lưu, ESP sẽ thực hiện khi kết nối lại.', 'warning', 5000);
-                    
-                    // Cho phép gửi lại
-                    pendingFeedId = null;
-                    feedBtn.disabled = false;
-                    feedBtn.textContent = 'CHO ĂN NGAY';
+                    showToast('⚠️ Không nhận được xác nhận từ ESP32 trong thời gian chờ. Vui lòng thử lại.', 'warning', 5000);
+                    resetFeedPendingState();
                 }
-            }, 10000);
+            }, FEED_ACK_TIMEOUT_MS);
         }
         
         // Load cấu hình từ localStorage
