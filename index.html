@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🐠 Bể Cá IoT - MQTT Web Interface v2.0</title>
+    <link rel="icon" href="data:,">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         
@@ -1301,6 +1302,10 @@
                 const response = await fetch(`${GOOGLE_SCRIPT_URL}?limit=100`, {
                     method: 'GET',
                 });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status} khi đọc lịch sử sự kiện`);
+                }
                 
                 const data = await response.json();
                 return data;
@@ -1322,12 +1327,22 @@
                     { method: 'GET' }
                 );
 
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status} khi đọc lịch sử cảm biến`);
+                }
+
                 const data = await response.json();
                 return data;
             } catch (error) {
                 console.error('❌ Lỗi đọc lịch sử cảm biến:', error);
                 return { success: false, error: error.message };
             }
+        }
+
+        function buildDateTime(year, month, day, hour, minute, second) {
+            const isoDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}`;
+            const parsed = new Date(isoDate);
+            return Number.isNaN(parsed.getTime()) ? null : parsed;
         }
 
         function parseSensorTimestamp(timestamp) {
@@ -1339,21 +1354,44 @@
             let match = text.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})$/);
             if (match) {
                 const [, dd, MM, yyyy, HH, mm, ss] = match;
-                return new Date(`${yyyy}-${MM}-${dd}T${HH}:${mm}:${ss}`);
+                const parsed = buildDateTime(yyyy, MM, dd, HH, mm, ss);
+                if (parsed) {
+                    return parsed;
+                }
             }
 
-            // HH:mm:ss M/D/YYYY
+            // HH:mm:ss D/M/YYYY (vi-VN) hoặc M/D/YYYY (fallback)
             match = text.match(/^(\d{1,2}):(\d{2}):(\d{2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
             if (match) {
-                const [, HH, mm, ss, M, D, yyyy] = match;
-                return new Date(`${yyyy}-${String(M).padStart(2, '0')}-${String(D).padStart(2, '0')}T${String(HH).padStart(2, '0')}:${mm}:${ss}`);
+                const [, HH, mm, ss, p1, p2, yyyy] = match;
+
+                // Ưu tiên D/M/YYYY để khớp dữ liệu từ Google Sheets (vi-VN)
+                let parsed = buildDateTime(yyyy, p2, p1, HH, mm, ss);
+                if (parsed) {
+                    return parsed;
+                }
+
+                // Fallback cho dữ liệu M/D/YYYY
+                parsed = buildDateTime(yyyy, p1, p2, HH, mm, ss);
+                if (parsed) {
+                    return parsed;
+                }
             }
 
-            // M/D/YYYY HH:mm:ss
+            // D/M/YYYY HH:mm:ss (vi-VN) hoặc M/D/YYYY (fallback)
             match = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})$/);
             if (match) {
-                const [, M, D, yyyy, HH, mm, ss] = match;
-                return new Date(`${yyyy}-${String(M).padStart(2, '0')}-${String(D).padStart(2, '0')}T${String(HH).padStart(2, '0')}:${mm}:${ss}`);
+                const [, p1, p2, yyyy, HH, mm, ss] = match;
+
+                let parsed = buildDateTime(yyyy, p2, p1, HH, mm, ss);
+                if (parsed) {
+                    return parsed;
+                }
+
+                parsed = buildDateTime(yyyy, p1, p2, HH, mm, ss);
+                if (parsed) {
+                    return parsed;
+                }
             }
 
             const parsed = new Date(text);
